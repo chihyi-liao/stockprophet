@@ -1,0 +1,10 @@
+requests
+lxml
+SQLALchemy
+psycopg2-binary
+configobj
+PyMySQL
+click
+setuptools
+urllib3
+numpy
