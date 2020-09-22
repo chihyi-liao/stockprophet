@@ -1,18 +1,19 @@
-import os
 import logging
-from pathlib import Path
+import pkg_resources
+
 from configobj import ConfigObj
 
 
-def get_project_root() -> Path:
-    return Path(__file__).parent.parent
-
-
-def read_config() -> dict:
-    root_path = get_project_root()
-    config_path = os.path.join(root_path, 'conf', 'config.ini')
+def read_config() -> ConfigObj:
+    config_path = pkg_resources.resource_filename('stockprophet', 'resources/config.ini')
     config = ConfigObj(config_path, encoding='UTF8')
     return config
+
+
+def read_db_settings() -> dict:
+    config_path = pkg_resources.resource_filename('stockprophet', 'resources/config.ini')
+    config = ConfigObj(config_path, encoding='UTF8')
+    return config.get('database', {})
 
 
 def get_logger(name):

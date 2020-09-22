@@ -2,29 +2,24 @@ import sys
 from setuptools import setup
 
 
-DESCRIPTION = "seaborn: statistical data visualization"
+DESCRIPTION = "stockprophet: stock data statistical and analysis"
 LONG_DESCRIPTION = """
-Seaborn is a library for making statistical graphics in Python. It is built on top of `matplotlib <https://matplotlib.org/>`_ and closely integrated with `pandas <https://pandas.pydata.org/>`_ data structures.
+StockProphet 是台股網路爬蟲和分析的工具.
 
-Here is some of the functionality that seaborn offers:
+以下為此工具的一些特點:
 
-- A dataset-oriented API for examining relationships between multiple variables
-- Specialized support for using categorical variables to show observations or aggregate statistics
-- Options for visualizing univariate or bivariate distributions and for comparing them between subsets of data
-- Automatic estimation and plotting of linear regression models for different kinds dependent variables
-- Convenient views onto the overall structure of complex datasets
-- High-level abstractions for structuring multi-plot grids that let you easily build complex visualizations
-- Concise control over matplotlib figure styling with several built-in themes
-- Tools for choosing color palettes that faithfully reveal patterns in your data
+- 使用 SQLAlchemy 將抓取的股價歷史資料存入資料庫, 可用資料庫為 SQLite 或 MySQL 或 PostgreSQL
+- 抓取的資料分別為 台灣上市櫃網站與股市公開交易站, 主要為每日歷史資料表, 每月營收表, 資產負債表以及綜合損益表
+- 會將抓取的 每日歷史資料表 經過計算後存成 每週歷史資料表 與 每月歷史資料表
+- 提供 cli 命令分析 基本面 與 技術面 並提供多種參數可以調校
 
-Seaborn aims to make visualization a central part of exploring and understanding data. Its dataset-oriented plotting functions operate on dataframes and arrays containing whole datasets and internally perform the necessary semantic mapping and statistical aggregation to produce informative plots.
 """
 
 DIST_NAME = 'stockprophet'
 MAINTAINER = 'ChiHyi Liao'
 MAINTAINER_EMAIL = 'chihyi.liao@gmail.com'
 LICENSE = 'BSD (3-clause)'
-DOWNLOAD_URL = 'https://github.com/mwaskom/seaborn/'
+DOWNLOAD_URL = 'https://github.com/chihyi-liao/stockprophet/'
 VERSION = '0.1.0.dev0'
 PYTHON_REQUIRES = ">=3.5"
 
@@ -32,7 +27,7 @@ INSTALL_REQUIRES = [
     'click>=7.1.2',
     'requests>=2.23.0',
     'lxml>=4.5.2',
-    'SQLAlchemy>=1.13.17',
+    'SQLAlchemy>=1.3.17',
     'psycopg2-binary>= 2.8.5',
     'PyMySQL>==0.10.1',
     'configobj>=5.0.6',
@@ -67,7 +62,7 @@ CLASSIFIERS = [
 ]
 
 ENTRY_POINTS = {
-    'console_scripts': ['stockprophet=stockprophet.__main__:main']
+    'console_scripts': ['stockprophet=stockprophet.__init__:main']
 }
 
 

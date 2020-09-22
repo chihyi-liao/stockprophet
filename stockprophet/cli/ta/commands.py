@@ -1,5 +1,4 @@
-from datetime import timedelta, date
-from typing import Tuple
+from datetime import timedelta
 import click
 
 from stockprophet.cli.ta import compute
