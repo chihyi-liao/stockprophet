@@ -1,7 +1,7 @@
 import random
 import time
 import threading
-from datetime import date, datetime
+from datetime import date
 from typing import Optional
 
 from lxml import html

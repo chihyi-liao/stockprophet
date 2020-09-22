@@ -3,15 +3,15 @@ from stockprophet.crawler import (
     init_stock_type, init_stock_category, init_stock_metadata
 )
 from stockprophet.db import init_db
-from stockprophet.utils import read_config
+
+from .utils import read_db_settings
 
 
 def preprocessing() -> bool:
     result = False
     # noinspection PyBroadException
     try:
-        config = read_config()
-        db_config = config.get('database', {})
+        db_config = read_db_settings()
         if not db_config:
             print("config.ini 找不到 'database' 區段")
             return result
