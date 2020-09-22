@@ -53,20 +53,15 @@ def get_pbr(current_date, code) -> str:
 
 
 @get_group.command('macd')
-@click.option('--start_date', '-s', help="設定開始日期", type=click.DateTime(formats=["%Y-%m-%d"]))
-@click.option('--end_date', '-e', help="設定結束日期", type=click.DateTime(formats=["%Y-%m-%d"]))
 @click.option('--n_day', '-n', default=60, type=click.IntRange(1, 90), help="資料表計算天數")
 @click.option('--type_s', '-t', help="指定股市為上市或上櫃", type=click.Choice(['tse', 'otc']))
 @click.option('--use_weekly', is_flag=True, help='使用每週歷史資料表來計算')
 @click.option('--use_monthly', is_flag=True, help='使用每月歷史資料表來計算')
-def get_macd(start_date, end_date, n_day, type_s, use_weekly, use_monthly):
+def get_macd(n_day, type_s, use_weekly, use_monthly):
     # 設定初始日期
-    if not end_date:
-        date_data = get_stock_dates()
-        end_date = get_latest_stock_date(date_data.get("market_holiday", []))
-
-    if not start_date:
-        start_date = end_date - timedelta(days=n_day)
+    date_data = get_stock_dates()
+    end_date = get_latest_stock_date(date_data.get("market_holiday", []))
+    start_date = end_date - timedelta(days=n_day)
 
     s = get_session()
     stock_list = db_mgr.stock.readall_api(s, type_s=type_s, is_alive=True)
@@ -92,7 +87,7 @@ def get_macd(start_date, end_date, n_day, type_s, use_weekly, use_monthly):
         name = stock['name']
         key = "%s(%s)" % (name, code)
         stock_data = table.read_api(
-            s, code=code, start_date=start_date, end_date=end_date, limit=90)
+            s, code=code, start_date=start_date, end_date=end_date, limit=0)
         values = []
         tmp = dict()
         for i, v in enumerate(stock_data):
@@ -116,6 +111,91 @@ def get_macd(start_date, end_date, n_day, type_s, use_weekly, use_monthly):
 
         data = diff[-3:]
         if data[-3] < data[-2] < 0 < data[-1]:
+            result[key] = tmp[key]
+
+    # 顯示輸出
+    header = "{:<16}\t{:>4}\t{:>8}\t{:>8}\t{:>8}\t{:>8}\t{:>8}\t{:>8}\t{:>8}".format(
+        "name(code)", chr(12288), "open", "high", "low", "close", "diff(%)", "volume", "pbr")
+    line = "{:<16}\t{:>4}\t{:>8}\t{:>8}\t{:>8}\t{:>8}\t{:>8}\t{:>8}\t{:>8}".format(
+        "="*16, chr(12288), "="*8, "="*8, "="*8, "="*8, "="*8, "="*8, "="*8)
+    click.echo(line)
+    click.echo(header)
+    click.echo(line)
+    for k, v in result.items():
+        msg = "{:<16}\t{:>4}\t{:>8}\t{:>8}\t{:>8}\t{:>8}\t{:>8}\t{:>8}\t{:>8}".format(
+            k, chr(12288), v[0], v[1], v[2], v[3], str(v[4])+'%', v[5], v[6])
+        click.echo(msg)
+
+
+@get_group.command('kdj')
+@click.option('--scalar', '-s', default=4, type=click.IntRange(1, 8), help="9天資料的粒度")
+@click.option('--type_s', '-t', help="指定股市為上市或上櫃", type=click.Choice(['tse', 'otc']))
+@click.option('--use_weekly', is_flag=True, help='使用每週歷史資料表來計算')
+@click.option('--use_monthly', is_flag=True, help='使用每月歷史資料表來計算')
+def get_kdj(type_s, use_weekly, use_monthly, scalar):
+    date_data = get_stock_dates()
+    end_date = get_latest_stock_date(date_data.get("market_holiday", []))
+
+    n_day = 9
+    start_date = end_date - timedelta(days=scalar*n_day)
+
+    s = get_session()
+    stock_list = db_mgr.stock.readall_api(s, type_s=type_s, is_alive=True)
+    if len(stock_list) == 0:
+        return
+
+    if use_weekly and use_monthly:
+        click.echo("無法同時指定兩個歷史資料表")
+        return
+
+    if use_weekly:
+        table = db_mgr.stock_weekly_history
+        start_date = start_date - timedelta(days=(scalar*n_day*7)-(scalar*n_day))
+    elif use_monthly:
+        table = db_mgr.stock_monthly_history
+        start_date = start_date - timedelta(days=(scalar*n_day*30)-(scalar*n_day))
+    else:
+        table = db_mgr.stock_daily_history
+
+    result = dict()
+    for stock in stock_list:
+        code = stock['code']
+        name = stock['name']
+        key = "%s(%s)" % (name, code)
+        stock_data = table.read_api(
+            s, code=code, start_date=start_date, end_date=end_date, limit=0)
+        high_values = []
+        low_values = []
+        close_values = []
+        tmp = dict()
+        if len(stock_data) < 9:
+            continue
+
+        stock_data = stock_data
+        for i, v in enumerate(stock_data):
+            if not v['co']:
+                continue
+
+            high_values.append(v['hi'])
+            low_values.append(v['lo'])
+            close_values.append(v['co'])
+            if i == len(stock_data) - 1:  # 取得最後的值
+                pbr = get_pbr(end_date, code)
+                tmp[key] = [v['op'], v['hi'], v['lo'], v['co'], v['ch'], int(v['vol']/1000), pbr]
+                break
+
+        if not tmp.get(key):
+            continue
+
+        k_data, d_data, j_data = compute.kdj(high_values, low_values, close_values, n_day)
+        if len(k_data) < 2:
+            continue
+
+        if k_data[-1] > 20 or d_data[-1] > 20:
+            continue
+
+        # 收集金叉
+        if k_data[-1] - k_data[-2] > 0 and k_data[-1] - d_data[-2] > 0:
             result[key] = tmp[key]
 
     # 顯示輸出
