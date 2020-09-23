@@ -5,7 +5,7 @@ try:
         stock_weekly_date, stock_weekly_history,
         stock_monthly_date, stock_monthly_history,
         stock_income_statement, stock_balance_sheet,
-        stock_season_date
+        stock_season_date, stock_monthly_revenue
     )
 except ImportError:
     raise
