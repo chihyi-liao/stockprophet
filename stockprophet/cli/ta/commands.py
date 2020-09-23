@@ -53,11 +53,15 @@ def get_pbr(current_date, code) -> str:
 
 
 @get_group.command('macd')
-@click.option('--n_day', '-n', default=60, type=click.IntRange(1, 90), help="資料表計算天數")
+@click.option('--n_day', '-n', default=60, show_default=True,
+              type=click.IntRange(1, 90), help="資料表計算天數")
 @click.option('--type_s', '-t', help="指定股市為上市或上櫃", type=click.Choice(['tse', 'otc']))
 @click.option('--use_weekly', is_flag=True, help='使用每週歷史資料表來計算')
 @click.option('--use_monthly', is_flag=True, help='使用每月歷史資料表來計算')
-def get_macd(n_day, type_s, use_weekly, use_monthly):
+@click.option('--fast', '-f', default=12, show_default=True, type=int, help='macd 快線參數')
+@click.option('--slow', '-s', default=26, show_default=True, type=int, help='macd 慢線參數')
+@click.option('--dif', '-d', default=9, show_default=True, type=int, help='macd 差離值參數')
+def get_macd(n_day, type_s, use_weekly, use_monthly, fast, slow, dif):
     # 設定初始日期
     date_data = get_stock_dates()
     end_date = get_latest_stock_date(date_data.get("market_holiday", []))
@@ -102,7 +106,7 @@ def get_macd(n_day, type_s, use_weekly, use_monthly):
         if not tmp.get(key):
             continue
 
-        macd, signal, diff = compute.macd(values)
+        macd, signal, diff = compute.macd(values, fast=fast, slow=slow, n=dif)
         if len(diff) < 3:
             continue
 

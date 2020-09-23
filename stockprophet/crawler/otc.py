@@ -89,7 +89,7 @@ def fetch_stock_category(dt: date, retry: int = 3) -> dict:
 
     for i, (_type, _category) in enumerate(OTC_CATEGORY, start=1):
         kwargs['params']['se'] = _type
-        for _ in range(retry):
+        for n in range(retry):
             req.wait_interval = random.randint(3, 5)
             resp = req.send_data(method='GET', url=STOCK_URL, **kwargs)
             if resp.status_code == 200:
@@ -111,6 +111,9 @@ def fetch_stock_category(dt: date, retry: int = 3) -> dict:
                 break
             else:
                 logger.warning("無法取得%s上櫃類股(%s)資料", dt.strftime("%Y-%m-%d"), _category)
+                if n == retry - 1:
+                    result = {}
+                    return result
     return result
 
 
@@ -148,7 +151,7 @@ class CrawlerTask(threading.Thread):
         dt = get_latest_stock_date(self._date_data.get("market_holiday", []))
         fetch_data = fetch_stock_category(dt)
         if not fetch_data:
-            logger.error("無法從證交所網站取得<類股>資料")
+            logger.error("無法取得 '%s' 完整類股的資料" % (self._stock_type, ))
             return False
 
         type_dict = type_list[0]
