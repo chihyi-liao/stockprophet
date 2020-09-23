@@ -82,3 +82,13 @@ def mops_balance_sheet_table(start_date, end_date):
     task = mops.CrawlerTask(start_date=start_date, end_date=end_date, build_balance_table=True)
     task.start()
     task.join()
+
+
+@build_group.command()
+@click.option('--start_date', '-s', help="設定開始日期", type=click.DateTime(formats=["%Y-%m-%d"]))
+@click.option('--end_date', '-e', help="設定結束日期", type=click.DateTime(formats=["%Y-%m-%d"]))
+def mops_monthly_revenue_table(start_date, end_date):
+    click.echo("建立上市上櫃月營收表")
+    task = mops.CrawlerTask(start_date=start_date, end_date=end_date, build_revenue_table=True)
+    task.start()
+    task.join()

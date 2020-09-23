@@ -11,7 +11,7 @@ from stockprophet.db import manager as db_mgr
 from stockprophet.utils import get_logger
 from .utils.date import (
     get_latest_stock_date, season_range, latest_year_season, date_to_year_season,
-    date_range, check_crawler_date_settings
+    date_range, check_crawler_date_settings, month_range
 )
 from .utils.common import HttpRequest, get_stock_dates
 
@@ -245,7 +245,8 @@ def fetch_balance_sheet(type_s: str, code: str, year: int, season: int, retry: i
 
 class CrawlerTask(threading.Thread):
     def __init__(self, start_date: date = None, end_date: date = None,
-                 build_income_table: bool = False, build_balance_table: bool = False):
+                 build_income_table: bool = False, build_balance_table: bool = False,
+                 build_revenue_table: bool = False):
         threading.Thread.__init__(self)
         default_date = date(2013, 1, 1)
 
@@ -253,6 +254,7 @@ class CrawlerTask(threading.Thread):
         self._date_data = get_stock_dates()
         self._build_income_table = build_income_table
         self._build_balance_table = build_balance_table
+        self._build_revenue_table = build_revenue_table
         self._loss_fetch = []
         if not start_date:
             self.start_date = default_date
@@ -422,10 +424,77 @@ class CrawlerTask(threading.Thread):
                 self._session, metadata[0]['id'],
                 update_data={'mops_income_statement_update_date': start_dt})
 
+    def build_monthly_revenue_table(self):
+        logger.info("build stock monthly revenue table")
+        etf_list = db_mgr.stock_category.read_api(self._session, 'ETF')
+        etf_id = None
+        if len(etf_list) == 1:
+            etf_id = etf_list[0]['id']
+
+        # 取得所有上市股票
+        type_list = [t['name'] for t in db_mgr.stock_type.readall_api(self._session)]
+        for type_s in type_list:
+            stock_list = db_mgr.stock.readall_api(self._session, type_s=type_s, is_alive=True)
+            if len(stock_list) == 0:
+                logger.warning("資料庫無任何上市股票, 請先取得股票資訊")
+                return
+
+            for _j, stock in enumerate(stock_list, start=1):
+                # 過濾 ETF 有關的股票
+                if etf_id is not None and stock['stock_category_id'] == etf_id:
+                    continue
+
+                start_date, _ = month_range(self.start_date)
+                for current_date in date_range(self.start_date, self.end_date):
+                    # 判斷時間已做到最新的報表
+                    if current_date.year >= self.end_date.year and current_date.month > self.end_date.month:
+                        break
+
+                    # 只處理每月第一天, 避免重複計算
+                    mn_start_date, mn_end_date = month_range(current_date)
+                    season_date = mn_start_date
+                    if current_date != season_date:
+                        continue
+
+                    # 取得 season date
+                    db_lock.acquire()
+                    mn_date_list = db_mgr.stock_monthly_date.read_api(self._session, mn_start_date)
+                    if len(mn_date_list) == 0:
+                        logger.info("建立 '%s' 的month_date", mn_start_date.strftime("%Y-%m-%d"))
+                        db_mgr.stock_monthly_date.create_api(self._session, data_list=[{'date': mn_start_date}])
+                        db_lock.release()
+                        sn_date_list = db_mgr.stock_season_date.read_api(self._session, mn_start_date)
+                    else:
+                        db_lock.release()
+
+                    # 若該股已存在則跳過
+                    db_lock.acquire()
+                    revenue_list = db_mgr.stock_monthly_revenue.read_api(
+                        self._session, code=stock['code'], start_date=mn_start_date)
+                    if len(revenue_list) > 0:
+                        db_lock.release()
+                        continue
+                    db_lock.release()
+
+                    # 取得 stock_date_id
+                    stock_date_id = mn_date_list[0]['id']
+
+                    data = fetch_monthly_revenue(type_s, stock['code'], mn_start_date.year, mn_start_date.month)
+                    if data:
+                        data['stock_id'] = stock['id']
+                        data['stock_date_id'] = stock_date_id
+                        logger.info("%s(%s)建立 '%s' 的month_date" % (
+                            stock['name'], stock['code'], mn_start_date.strftime("%Y-%m-%d")))
+                        db_mgr.stock_monthly_revenue.create_api(self._session, data_list=[data])
+                    else:
+                        logger.warning("%s(%s)找不到'%s/%s'月營收資料" % (
+                            stock['name'], stock['code'], mn_start_date.year, mn_start_date.month))
+                        self._loss_fetch.append(
+                            ('monthly_revenue', stock['code'], mn_start_date.year, mn_start_date.month))
+
     def run(self):
         logger.info("Starting MOPS thread")
         while True:
-            # try:
             metadata = db_mgr.stock_metadata.read_api(self._session)
             if len(metadata) == 1:
                 tse_stock_update_date = metadata[0]['tse_stock_info_update_date']
@@ -441,6 +510,8 @@ class CrawlerTask(threading.Thread):
                         if income_update_date:
                             self.start_date = income_update_date
                         self.build_income_statement_table()
+                    elif self._build_revenue_table:
+                        self.build_monthly_revenue_table()
                     else:
                         logger.warning("缺少指定建立table的設定參數")
                     if len(self._loss_fetch) != 0:
@@ -448,7 +519,4 @@ class CrawlerTask(threading.Thread):
                     self._session.close()
                     break
             time.sleep(30)
-            # except Exception as e:
-            #     logger.error(str(e))
-            #     break
         logger.info("Finish MOPS thread")

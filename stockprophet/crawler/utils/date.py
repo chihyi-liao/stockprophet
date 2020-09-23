@@ -52,7 +52,7 @@ def latest_year_season(date: datetime.date):
     year = date.year
     month = date.month
     if month in [12, 1, 2, 3]:
-        if month is not 12:
+        if month != 12:
             year = year - 1
         return year, 3
     elif month in [4, 5]:
