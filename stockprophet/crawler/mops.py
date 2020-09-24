@@ -110,7 +110,7 @@ def fetch_monthly_revenue(type_s: str, code: str, year: int, month: int, retry: 
     if not stock_type:
         return result
 
-    req.wait_interval = random.randint(1, 5)
+    req.wait_interval = random.randint(3, 5)
     kwargs['data']['TYPEK'] = stock_type
     for i in range(retry):
         resp = req.send_data('POST', url, **kwargs)
@@ -118,12 +118,12 @@ def fetch_monthly_revenue(type_s: str, code: str, year: int, month: int, retry: 
             tree = html.fromstring(resp.text)
             root = "/html/body/table[@class='hasBorder']"
             if check_over_run(tree):
-                req.wait_interval = random.randint(20, 30)
+                req.wait_interval = random.randint(30, 40)
                 logger.warning("股市代號: %s, 無法取得%s-%s月營收報表資料(過載)", code, year, month)
                 continue
             else:
                 # 解析當月營收
-                req.wait_interval = random.randint(1, 5)
+                req.wait_interval = random.randint(3, 5)
                 subtree = tree.xpath("{root}/tr".format(root=root))
                 for item in subtree:
                     tbl_heads = item.xpath("th[@class='tblHead']/text()")
@@ -168,7 +168,7 @@ def fetch_income_statement(type_s: str, code: str, year: int, season: int, retry
     if not stock_type:
         return result
 
-    req.wait_interval = random.randint(1, 5)
+    req.wait_interval = random.randint(3, 5)
     kwargs['data']['TYPEK'] = stock_type
     for i in range(retry):
         resp = req.send_data('POST', url, **kwargs)
@@ -176,12 +176,12 @@ def fetch_income_statement(type_s: str, code: str, year: int, season: int, retry
             tree = html.fromstring(resp.text)
             root = "/html/body/center/table[@class='hasBorder']"
             if check_over_run(tree):
-                req.wait_interval = random.randint(20, 30)
+                req.wait_interval = random.randint(30, 40)
                 logger.warning("股市代號: %s, 無法取得%s-%Qs綜合損益表資料(過載)", code, year, season)
                 continue
             else:
                 # 解析綜合損益表
-                req.wait_interval = random.randint(1, 5)
+                req.wait_interval = random.randint(3, 5)
                 subtree = tree.xpath("{root}/tr".format(root=root))
                 for item in subtree:
                     titles = item.xpath(
@@ -215,18 +215,18 @@ def fetch_balance_sheet(type_s: str, code: str, year: int, season: int, retry: i
     if not stock_type:
         return result
 
-    req.wait_interval = random.randint(1, 5)
+    req.wait_interval = random.randint(3, 5)
     kwargs['data']['TYPEK'] = stock_type
     for i in range(retry):
         resp = req.send_data('POST', url, **kwargs)
         if resp.status_code == 200:
             tree = html.fromstring(resp.text)
             if check_over_run(tree):
-                req.wait_interval = random.randint(20, 30)
+                req.wait_interval = random.randint(30, 40)
                 logger.warning("股市代號: %s, 無法取得%s-Q%s資產負債表資料(過載)", code, year, season)
                 continue
             else:
-                req.wait_interval = random.randint(1, 5)
+                req.wait_interval = random.randint(3, 5)
                 subtree = tree.xpath("//table[@class='hasBorder']/tr")
                 for item in subtree:
                     titles = item.xpath(
