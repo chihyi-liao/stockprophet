@@ -55,8 +55,10 @@ def translate_balance_sheet(data):
         '流動資產合計': 'total_current_assets', '非流動資產合計': 'total_non_current_assets',
         '流動負債合計': 'total_current_liabs', '非流動負債合計': 'total_non_current_liabs',
         '應付帳款': 'accrued_payable', '其他應付款': 'other_payable',
-        '資本公積合計': 'capital_reserve', '普通股股本': 'common_stocks',
-        '股本合計': 'total_stocks', '存貨': 'inventories', '預付款項': 'prepaid',
+        '資本公積': 'capital_reserve', '資本公積合計': 'capital_reserve',
+        '普通股股本': 'common_stocks', '股本合計': 'total_stocks',
+        '存貨': 'inventories', '預付款項': 'prepaid',
+        '歸屬於母公司業主之權益': 'shareholders_net_income',
         '歸屬於母公司業主之權益合計': 'shareholders_net_income'}
     for key, val in data.items():
         # noinspection PyBroadException
@@ -91,66 +93,50 @@ def check_over_run(tree: Optional[any]) -> bool:
         return False
 
 
-def fetch_monthly_revenue(type_s: str, code: str, year: int, month: int, retry: int = 3):
+def fetch_monthly_revenue(type_s: str, year: int, month: int, retry: int = 3):
     """
     取得月營收資料可以從2013/01到現在
     """
     req = HttpRequest()
-    url = "{base_url}/ajax_t05st10_ifrs".format(base_url=MOPS_URL)
-    kwargs = dict()
-    kwargs['headers'] = req.form_headers()
-    kwargs['data'] = {'encodeURIComponent': '1',
-                      'step': '1',
-                      'firstin': '1',
-                      'co_id': code,
-                      'year': year - 1911,
-                      'month': "%02d" % month}
     result = {}
+
     stock_type = convert_stock_type(type_s)
     if not stock_type:
         return result
 
+    url = 'https://mops.twse.com.tw/nas/t21/{stock_type}/t21sc03_{year}_{month}_0.html'.format(
+        stock_type=stock_type, year=year - 1911, month=month)
+    kwargs = dict()
+    kwargs['headers'] = req.default_headers()
+
     req.wait_interval = random.randint(3, 5)
-    kwargs['data']['TYPEK'] = stock_type
     for i in range(retry):
-        resp = req.send_data('POST', url, **kwargs)
+        resp = req.send_data('GET', url, **kwargs)
         if resp.status_code == 200:
+            resp.encoding = 'big5'
             tree = html.fromstring(resp.text)
-            root = "/html/body/table[@class='hasBorder']"
-            if check_over_run(tree):
-                req.wait_interval = random.randint(30, 40)
-                logger.warning("股市代號: %s, 無法取得%s-%s月營收報表資料(過載)", code, year, month)
-                continue
-            else:
-                # 解析當月營收
-                req.wait_interval = random.randint(3, 5)
-                subtree = tree.xpath("{root}/tr".format(root=root))
-                for item in subtree:
-                    tbl_heads = item.xpath("th[@class='tblHead']/text()")
-                    if '本月' in tbl_heads:
-                        values = item.xpath("td/text()")
-                        if len(values):
-                            revenue = "".join(values[0].split())
-                            try:
-                                result['revenue'] = int(revenue.replace(',', ''))
-                            except (ValueError, TypeError):
-                                result['revenue'] = None
-                # 解析當月營收備註
-                subtree = tree.xpath("{root}/th".format(root=root))
-                for item in subtree:
-                    notes = item.xpath("text()")
-                    if len(notes) and '備註' in notes:
-                        values = tree.xpath(
-                            "{root}/td/pre/text()".format(root=root))
-                        if len(values):
-                            result['notes'] = "".join(values[0].split())
+            root = "/html/body/center/center/table//tr[position() >=2 and position() <= last()-1]"
+            for dom in tree.xpath(root):
+                stock_revenue = []
+                for td in dom.xpath("td[position()>=0 and position()<=3]/text()"):
+                    stock_revenue.append(td.strip())
+
+                if len(stock_revenue) == 3:
+                    code = stock_revenue[0]
+                    revenue = stock_revenue[2]
+                    result[code] = revenue
+
+            if result:
+                logger.warning("取得 %s %s-%s 月營收報表資料" % (type_s, year, month))
                 break
         else:
-            logger.warning("股市代號: %s, 無法取得%s-%s月營收報表資料" % (code, year, month))
+            req.wait_interval = random.randint(30, 40)
+            logger.warning("無法取得 %s %s-%s 月營收報表資料" % (type_s, year, month))
+
     return result
 
 
-def fetch_income_statement(type_s: str, code: str, year: int, season: int, retry: int = 3):
+def fetch_income_statement(type_s: str, code: str, year: int, season: int, step: str = '1', retry: int = 3):
     """Income statement is started from 2013/01 to now, which is based on IFRSs policy
     """
     req = HttpRequest()
@@ -158,7 +144,7 @@ def fetch_income_statement(type_s: str, code: str, year: int, season: int, retry
     kwargs = dict()
     kwargs['headers'] = req.form_headers()
     kwargs['data'] = {'encodeURIComponent': '1',
-                      'step': '1',
+                      'step': step,
                       'firstin': '1',
                       'co_id': code,
                       'year': year - 1911,
@@ -197,7 +183,7 @@ def fetch_income_statement(type_s: str, code: str, year: int, season: int, retry
     return translate_income_statement(result)
 
 
-def fetch_balance_sheet(type_s: str, code: str, year: int, season: int, retry: int = 3):
+def fetch_balance_sheet(type_s: str, code: str, year: int, season: int, step: str = '1', retry: int = 3):
     """Balance sheet is started from 2013/01 to now, which is based on IFRSs policy
     """
     req = HttpRequest()
@@ -205,7 +191,7 @@ def fetch_balance_sheet(type_s: str, code: str, year: int, season: int, retry: i
     kwargs = dict()
     kwargs['headers'] = req.form_headers()
     kwargs['data'] = {'encodeURIComponent': '1',
-                      'step': '1',
+                      'step': step,
                       'firstin': '1',
                       'co_id': code,
                       'year': year - 1911,
@@ -271,12 +257,20 @@ class CrawlerTask(threading.Thread):
 
     def build_balance_sheet_table(self):
         logger.info("build stock balance table")
+
+        # 排除 ETF 相關個股
         etf_list = db_mgr.stock_category.read_api(self._session, 'ETF')
         etf_id = None
         if len(etf_list) == 1:
             etf_id = etf_list[0]['id']
-        l_year, l_season = latest_year_season(self.end_date)
 
+        # 金融股查找需要特定參數
+        bank_list = db_mgr.stock_category.read_api(self._session, '金融保險')
+        bank_id = None
+        if len(bank_list) == 1:
+            bank_id = bank_list[0]['id']
+
+        l_year, l_season = latest_year_season(self.end_date)
         # 取得所有上市股票
         type_list = [t['name'] for t in db_mgr.stock_type.readall_api(self._session)]
         for type_s in type_list:
@@ -327,7 +321,12 @@ class CrawlerTask(threading.Thread):
                     # 取得 stock_date_id
                     stock_date_id = sn_date_list[0]['id']
 
-                    data = fetch_balance_sheet(type_s, code, year, season)
+                    # 金融股要特殊參數
+                    if bank_id is not None and stock['stock_category_id'] == bank_id:
+                        data = fetch_balance_sheet(type_s, code, year, season, '2')
+                    else:
+                        data = fetch_balance_sheet(type_s, code, year, season)
+
                     if data:
                         data['stock_id'] = stock['id']
                         data['stock_date_id'] = stock_date_id
@@ -350,12 +349,20 @@ class CrawlerTask(threading.Thread):
 
     def build_income_statement_table(self):
         logger.info("build stock income statement table")
+
+        # 排除 ETF 相關個股
         etf_list = db_mgr.stock_category.read_api(self._session, 'ETF')
         etf_id = None
         if len(etf_list) == 1:
             etf_id = etf_list[0]['id']
-        l_year, l_season = latest_year_season(self.end_date)
 
+        # 金融股查找需要特定參數
+        bank_list = db_mgr.stock_category.read_api(self._session, '金融保險')
+        bank_id = None
+        if len(bank_list) == 1:
+            bank_id = bank_list[0]['id']
+
+        l_year, l_season = latest_year_season(self.end_date)
         # 取得所有上市股票
         type_list = [t['name'] for t in db_mgr.stock_type.readall_api(self._session)]
         for type_s in type_list:
@@ -365,6 +372,7 @@ class CrawlerTask(threading.Thread):
                 return
 
             for _j, stock in enumerate(stock_list, start=1):
+                code = stock['code']
                 # 過濾 ETF 有關的股票
                 if etf_id is not None and stock['stock_category_id'] == etf_id:
                     continue
@@ -405,7 +413,12 @@ class CrawlerTask(threading.Thread):
                     # 取得 stock_date_id
                     stock_date_id = sn_date_list[0]['id']
 
-                    data = fetch_income_statement(type_s, stock['code'], year, season)
+                    # 金融股要特殊參數
+                    if bank_id is not None and stock['stock_category_id'] == bank_id:
+                        data = fetch_income_statement(type_s, code, year, season, '2')
+                    else:
+                        data = fetch_income_statement(type_s, code, year, season)
+
                     if data:
                         data['stock_id'] = stock['id']
                         data['stock_date_id'] = stock_date_id
@@ -416,6 +429,7 @@ class CrawlerTask(threading.Thread):
                         logger.warning(
                             "%s(%s)找不到'%s-%s'綜合損益資料" % (stock['name'], stock['code'], year, season))
                         self._loss_fetch.append(('income_statement', stock['code'], year, season))
+
         # 更新 metadata
         start_dt, _ = season_range(self.end_date)
         metadata = db_mgr.stock_metadata.read_api(self._session)
@@ -426,71 +440,63 @@ class CrawlerTask(threading.Thread):
 
     def build_monthly_revenue_table(self):
         logger.info("build stock monthly revenue table")
-        etf_list = db_mgr.stock_category.read_api(self._session, 'ETF')
-        etf_id = None
-        if len(etf_list) == 1:
-            etf_id = etf_list[0]['id']
 
-        # 取得所有上市股票
         type_list = [t['name'] for t in db_mgr.stock_type.readall_api(self._session)]
         for type_s in type_list:
-            stock_list = db_mgr.stock.readall_api(self._session, type_s=type_s, is_alive=True)
-            if len(stock_list) == 0:
-                logger.warning("資料庫無任何上市股票, 請先取得股票資訊")
-                return
+            start_date, _ = month_range(self.start_date)
+            for current_date in date_range(self.start_date, self.end_date):
+                # 判斷時間已做到最新的報表
+                if current_date.year >= self.end_date.year and current_date.month > self.end_date.month:
+                    break
 
-            for _j, stock in enumerate(stock_list, start=1):
-                # 過濾 ETF 有關的股票
-                if etf_id is not None and stock['stock_category_id'] == etf_id:
+                # 只處理每月第一天, 避免重複計算
+                mn_start_date, mn_end_date = month_range(current_date)
+                season_date = mn_start_date
+                if current_date != season_date:
                     continue
 
-                start_date, _ = month_range(self.start_date)
-                for current_date in date_range(self.start_date, self.end_date):
-                    # 判斷時間已做到最新的報表
-                    if current_date.year >= self.end_date.year and current_date.month > self.end_date.month:
-                        break
+                # 取得 month date
+                db_lock.acquire()
+                mn_date_list = db_mgr.stock_monthly_date.read_api(self._session, mn_start_date)
+                if len(mn_date_list) == 0:
+                    logger.info("建立 '%s' 的month_date", mn_start_date.strftime("%Y-%m-%d"))
+                    db_mgr.stock_monthly_date.create_api(self._session, data_list=[{'date': mn_start_date}])
+                    db_lock.release()
+                    mn_date_list = db_mgr.stock_season_date.read_api(self._session, mn_start_date)
+                else:
+                    db_lock.release()
 
-                    # 只處理每月第一天, 避免重複計算
-                    mn_start_date, mn_end_date = month_range(current_date)
-                    season_date = mn_start_date
-                    if current_date != season_date:
-                        continue
+                # 取得 stock_date_id
+                stock_date_id = mn_date_list[0]['id']
 
-                    # 取得 season date
-                    db_lock.acquire()
-                    mn_date_list = db_mgr.stock_monthly_date.read_api(self._session, mn_start_date)
-                    if len(mn_date_list) == 0:
-                        logger.info("建立 '%s' 的month_date", mn_start_date.strftime("%Y-%m-%d"))
-                        db_mgr.stock_monthly_date.create_api(self._session, data_list=[{'date': mn_start_date}])
-                        db_lock.release()
-                        sn_date_list = db_mgr.stock_season_date.read_api(self._session, mn_start_date)
-                    else:
-                        db_lock.release()
-
-                    # 若該股已存在則跳過
+                data = fetch_monthly_revenue(type_s, mn_start_date.year, mn_start_date.month)
+                for code, value in data.items():
                     db_lock.acquire()
                     revenue_list = db_mgr.stock_monthly_revenue.read_api(
-                        self._session, code=stock['code'], start_date=mn_start_date)
-                    if len(revenue_list) > 0:
+                        self._session, code=code, start_date=mn_start_date)
+                    if len(revenue_list) > 0:  # 已存在則跳過
                         db_lock.release()
                         continue
                     db_lock.release()
 
-                    # 取得 stock_date_id
-                    stock_date_id = mn_date_list[0]['id']
+                    stock_list = db_mgr.stock.read_api(self._session, type_s=type_s, code=code)
+                    if len(stock_list) == 0:
+                        continue
 
-                    data = fetch_monthly_revenue(type_s, stock['code'], mn_start_date.year, mn_start_date.month)
-                    if data:
-                        data['stock_id'] = stock['id']
-                        data['stock_date_id'] = stock_date_id
-                        logger.info("%s(%s)建立 '%s' 的month_date" % (
-                            stock['name'], stock['code'], mn_start_date.strftime("%Y-%m-%d")))
-                        db_mgr.stock_monthly_revenue.create_api(self._session, data_list=[data])
-                    else:
-                        logger.warning("%s(%s)找不到'%s/%s'月營收資料" % (
-                            stock['name'], stock['code'], mn_start_date.year, mn_start_date.month))
-                        self._loss_fetch.append(
-                            ('monthly_revenue', stock['code'], mn_start_date.year, mn_start_date.month))
+                    # noinspection PyBroadException
+                    try:
+                        val = int(value.replace(',', ''))
+                        revenue = val
+                    except Exception:
+                        continue
+
+                    name = stock_list[0]['name']
+                    data_list = [
+                        {'stock_id': stock_list[0]['id'], 'stock_date_id': stock_date_id, 'revenue': revenue}]
+
+                    db_mgr.stock_monthly_revenue.create_api(self._session, data_list=data_list)
+                    logger.info("%s(%s)建立 '%s' 的month_date" % (
+                        name, code, mn_start_date.strftime("%Y-%m-%d")))
 
     def run(self):
         logger.info("Starting MOPS thread")
