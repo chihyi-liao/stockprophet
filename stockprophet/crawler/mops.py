@@ -3,6 +3,7 @@ import threading
 from datetime import date, timedelta
 from typing import Optional
 
+from sqlalchemy.orm.session import Session
 from lxml import html
 
 from stockprophet.db import create_local_session, db_lock
@@ -177,7 +178,7 @@ def fetch_income_statement(type_s: str, code: str, year: int, season: int, step:
                     if len(titles) == 1 and len(values) > 0:
                         result[titles[0]] = values[0]
                 if not result:
-                    logger.warning("200: %s", resp.content)
+                    logger.warning("200: %s", resp.text)
                 break
         else:
             logger.warning(resp.content)
@@ -226,12 +227,188 @@ def fetch_balance_sheet(type_s: str, code: str, year: int, season: int, step: st
                     if len(titles) == 1 and len(values) > 0:
                         result[titles[0]] = values[0]
                 if not result:
-                    logger.warning("200: %s", resp.content)
+                    logger.warning("200: %s", resp.text)
                 break
         else:
             logger.warning(resp.content)
             logger.warning("股市代號: %s, 無法取得%s-Q%s資產負債表資料", code, year, season)
     return translate_balance_sheet(result)
+
+
+def patch_balance_sheet_table(s: Session, type_s: str, code: str, start_date: date, end_date: date):
+    logger.info("patch stock balance table")
+    # 排除 ETF 相關個股
+    etf_list = db_mgr.stock_category.read_api(s, name='ETF')
+    etf_id = None
+    if len(etf_list) == 1:
+        etf_id = etf_list[0]['id']
+    # 金融股查找需要特定參數
+    bank_list = db_mgr.stock_category.read_api(s, name='金融保險')
+    bank_id = None
+    if len(bank_list) == 1:
+        bank_id = bank_list[0]['id']
+    l_year, l_season = latest_year_season(end_date)
+    stock_list = db_mgr.stock.read_api(s, type_s=type_s, code=code)
+    if len(stock_list) != 1:
+        return
+    stock = stock_list[0]
+    # 過濾 ETF 有關的股票
+    if etf_id is not None and stock['stock_category_id'] == etf_id:
+        return
+
+    metadata_list = db_mgr.stock_metadata.read_api(s, code=code)
+    if len(metadata_list) != 1:  # should never run here
+        raise Exception("metadata list is 0")
+    metadata_id = metadata_list[0]['id']
+    history_create_date = metadata_list[0]['daily_history_create_date']
+    if history_create_date > start_date:
+        start_date = history_create_date
+
+    start_date, _ = season_range(start_date)
+    create_date = None
+    for current_date in date_range(start_date, end_date):
+        # 判斷時間已做到最新的報表
+        year, season = date_to_year_season(current_date)
+        if year >= l_year and season > l_season:
+            break
+        # 只處理每季第一天, 避免重複計算
+        sn_start_date, sn_end_date = season_range(current_date)
+        season_date = sn_start_date
+        if current_date != season_date:
+            continue
+
+        metadata = dict()
+
+        # 取得 season date
+        db_lock.acquire()
+        sn_date_list = db_mgr.stock_season_date.read_api(s, sn_start_date)
+        if len(sn_date_list) == 0:
+            logger.info("建立 '%s' 的season_date", sn_start_date.strftime("%Y-%m-%d"))
+            db_mgr.stock_season_date.create_api(s, data_list=[{'date': sn_start_date}])
+            db_lock.release()
+            sn_date_list = db_mgr.stock_season_date.read_api(s, date=sn_start_date)
+        else:
+            db_lock.release()
+
+        # 取得 stock_date_id
+        stock_date_id = sn_date_list[0]['id']
+
+        # 金融股要特殊參數
+        if bank_id is not None and stock['stock_category_id'] == bank_id:
+            data = fetch_balance_sheet(type_s, code, year, season, '2')
+        else:
+            data = fetch_balance_sheet(type_s, code, year, season)
+        if data:
+            data['stock_id'] = stock['id']
+            data['stock_date_id'] = stock_date_id
+            # 若該股已存在則跳過
+            db_lock.acquire()
+            balance_list = db_mgr.stock_balance_sheet.read_api(
+                s, code=stock['code'], start_date=sn_start_date, end_date=sn_start_date, limit=1)
+            if len(balance_list) > 0:
+                db_mgr.stock_balance_sheet.update_api(s, oid=balance_list[0]['id'], update_data=data)
+            else:
+                db_mgr.stock_balance_sheet.create_api(s, data_list=[data])
+            db_lock.release()
+            if not create_date:
+                create_date = current_date
+                metadata['balance_create_date'] = create_date
+            metadata['balance_update_date'] = sn_start_date
+            db_mgr.stock_metadata.update_api(s, oid=metadata_id, update_data=metadata)
+            logger.info(
+                "%s(%s)建立 '%s' 的資產負債表" % (
+                    stock['name'], stock['code'], sn_start_date.strftime("%Y-%m-%d")))
+        else:
+            logger.warning(
+                "%s(%s)找不到'%s-%s'資產負債資料" % (stock['name'], stock['code'], year, season))
+
+
+def patch_income_statement_table(s: Session, type_s: str, code: str, start_date: date, end_date: date):
+    logger.info("patch stock income table")
+    # 排除 ETF 相關個股
+    etf_list = db_mgr.stock_category.read_api(s, name='ETF')
+    etf_id = None
+    if len(etf_list) == 1:
+        etf_id = etf_list[0]['id']
+    # 金融股查找需要特定參數
+    bank_list = db_mgr.stock_category.read_api(s, name='金融保險')
+    bank_id = None
+    if len(bank_list) == 1:
+        bank_id = bank_list[0]['id']
+    l_year, l_season = latest_year_season(end_date)
+    stock_list = db_mgr.stock.read_api(s, type_s=type_s, code=code)
+    if len(stock_list) != 1:
+        return
+    stock = stock_list[0]
+    # 過濾 ETF 有關的股票
+    if etf_id is not None and stock['stock_category_id'] == etf_id:
+        return
+
+    metadata_list = db_mgr.stock_metadata.read_api(s, code=code)
+    if len(metadata_list) != 1:  # should never run here
+        raise Exception("metadata list is 0")
+    metadata_id = metadata_list[0]['id']
+    history_create_date = metadata_list[0]['daily_history_create_date']
+    if history_create_date > start_date:
+        start_date = history_create_date
+
+    start_date, _ = season_range(start_date)
+    create_date = None
+    for current_date in date_range(start_date, end_date):
+        # 判斷時間已做到最新的報表
+        year, season = date_to_year_season(current_date)
+        if year >= l_year and season > l_season:
+            break
+        # 只處理每季第一天, 避免重複計算
+        sn_start_date, sn_end_date = season_range(current_date)
+        season_date = sn_start_date
+        if current_date != season_date:
+            continue
+
+        metadata = dict()
+
+        # 取得 season date
+        db_lock.acquire()
+        sn_date_list = db_mgr.stock_season_date.read_api(s, sn_start_date)
+        if len(sn_date_list) == 0:
+            logger.info("建立 '%s' 的season_date", sn_start_date.strftime("%Y-%m-%d"))
+            db_mgr.stock_season_date.create_api(s, data_list=[{'date': sn_start_date}])
+            db_lock.release()
+            sn_date_list = db_mgr.stock_season_date.read_api(s, date=sn_start_date)
+        else:
+            db_lock.release()
+
+        # 取得 stock_date_id
+        stock_date_id = sn_date_list[0]['id']
+
+        # 金融股要特殊參數
+        if bank_id is not None and stock['stock_category_id'] == bank_id:
+            data = fetch_income_statement(type_s, code, year, season, '2')
+        else:
+            data = fetch_income_statement(type_s, code, year, season)
+        if data:
+            data['stock_id'] = stock['id']
+            data['stock_date_id'] = stock_date_id
+            # 若該股已存在則跳過
+            db_lock.acquire()
+            income_list = db_mgr.stock_income_statement.read_api(
+                s, code=stock['code'], start_date=sn_start_date, end_date=sn_start_date, limit=1)
+            if len(income_list) > 0:
+                db_mgr.stock_income_statement.update_api(s, oid=income_list[0]['id'], update_data=data)
+            else:
+                db_mgr.stock_income_statement.create_api(s, data_list=[data])
+            db_lock.release()
+            if not create_date:
+                create_date = current_date
+                metadata['income_create_date'] = create_date
+            metadata['income_update_date'] = sn_start_date
+            db_mgr.stock_metadata.update_api(s, oid=metadata_id, update_data=metadata)
+            logger.info(
+                "%s(%s)建立 '%s' 的綜合損益表" % (
+                    stock['name'], stock['code'], sn_start_date.strftime("%Y-%m-%d")))
+        else:
+            logger.warning(
+                "%s(%s)找不到'%s-%s'綜合損益資料" % (stock['name'], stock['code'], year, season))
 
 
 class CrawlerTask(threading.Thread):
