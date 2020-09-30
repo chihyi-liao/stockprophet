@@ -266,13 +266,13 @@ class CrawlerTask(threading.Thread):
         logger.info("build stock balance table")
 
         # 排除 ETF 相關個股
-        etf_list = db_mgr.stock_category.read_api(self._session, 'ETF')
+        etf_list = db_mgr.stock_category.read_api(self._session, name='ETF')
         etf_id = None
         if len(etf_list) == 1:
             etf_id = etf_list[0]['id']
 
         # 金融股查找需要特定參數
-        bank_list = db_mgr.stock_category.read_api(self._session, '金融保險')
+        bank_list = db_mgr.stock_category.read_api(self._session, name='金融保險')
         bank_id = None
         if len(bank_list) == 1:
             bank_id = bank_list[0]['id']

@@ -345,7 +345,7 @@ class CrawlerTask(threading.Thread):
 
     def update_metadata_table(self) -> bool:
         if calc_metadata(self._session, type_s=self._stock_type,
-                         start_date=self.start_date, end_date=self.end_date):
+                         start_date=self.default_date(), end_date=self.latest_date()):
             return True
         return False
 
@@ -370,7 +370,7 @@ class CrawlerTask(threading.Thread):
             logger.info("Finish OTC thread")
             return
         else:
-            is_failed_stock = True
+            # is_failed_stock = True
             for retry in range(3):
                 if len(metadata_list) == 1:
                     self.start_date = metadata_list[0]['daily_history_update_date']
