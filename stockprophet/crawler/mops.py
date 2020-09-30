@@ -83,7 +83,7 @@ def check_over_run(tree: Optional[any]) -> bool:
     is_overrun = False
     overrun_tree = tree.xpath("//table/tr/td/center/text()")
     for item in overrun_tree:
-        if 'overrun' in item.lower():
+        if 'overrun' in item.lower() or '查詢過於頻繁' in item:
             is_overrun = True
         break
     if is_overrun:
@@ -160,7 +160,6 @@ def fetch_income_statement(type_s: str, code: str, year: int, season: int, step:
         resp = req.send_data('POST', url, **kwargs)
         if resp.status_code == 200:
             tree = html.fromstring(resp.text)
-            root = "/html/body/center/table[@class='hasBorder']"
             if check_over_run(tree):
                 req.wait_interval = random.randint(30, 40)
                 logger.warning("股市代號: %s, 無法取得%s-%Qs綜合損益表資料(過載)", code, year, season)
@@ -168,7 +167,7 @@ def fetch_income_statement(type_s: str, code: str, year: int, season: int, step:
             else:
                 # 解析綜合損益表
                 req.wait_interval = random.randint(3, 5)
-                subtree = tree.xpath("{root}/tr".format(root=root))
+                subtree = tree.xpath("//table[@class='hasBorder']/tr")
                 for item in subtree:
                     titles = item.xpath(
                         "td[@style='text-align:left;white-space:nowrap;']/text()")
@@ -237,6 +236,8 @@ def fetch_balance_sheet(type_s: str, code: str, year: int, season: int, step: st
 
 def patch_balance_sheet_table(s: Session, type_s: str, code: str, start_date: date, end_date: date):
     logger.info("patch stock balance table")
+    default_date = date(2013, 1, 1)
+
     # 排除 ETF 相關個股
     etf_list = db_mgr.stock_category.read_api(s, name='ETF')
     etf_id = None
@@ -264,7 +265,12 @@ def patch_balance_sheet_table(s: Session, type_s: str, code: str, start_date: da
     if history_create_date > start_date:
         start_date = history_create_date
 
-    start_date, _ = season_range(start_date)
+    if start_date <= default_date:
+        _, et = season_range(default_date)
+        start_date, _ = season_range(et + timedelta(days=1))
+    else:
+        start_date, _ = season_range(start_date)
+
     create_date = None
     for current_date in date_range(start_date, end_date):
         # 判斷時間已做到最新的報表
@@ -325,6 +331,8 @@ def patch_balance_sheet_table(s: Session, type_s: str, code: str, start_date: da
 
 def patch_income_statement_table(s: Session, type_s: str, code: str, start_date: date, end_date: date):
     logger.info("patch stock income table")
+    default_date = date(2013, 1, 1)
+
     # 排除 ETF 相關個股
     etf_list = db_mgr.stock_category.read_api(s, name='ETF')
     etf_id = None
@@ -349,10 +357,15 @@ def patch_income_statement_table(s: Session, type_s: str, code: str, start_date:
         raise Exception("metadata list is 0")
     metadata_id = metadata_list[0]['id']
     history_create_date = metadata_list[0]['daily_history_create_date']
-    if history_create_date > start_date:
+    if history_create_date and history_create_date > start_date:
         start_date = history_create_date
 
-    start_date, _ = season_range(start_date)
+    if start_date <= default_date:
+        _, et = season_range(default_date)
+        start_date, _ = season_range(et + timedelta(days=1))
+    else:
+        start_date, _ = season_range(start_date)
+
     create_date = None
     for current_date in date_range(start_date, end_date):
         # 判斷時間已做到最新的報表
