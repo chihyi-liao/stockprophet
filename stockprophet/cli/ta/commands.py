@@ -66,6 +66,7 @@ def get_macd(n_day, type_s, use_weekly, use_monthly, fast, slow, dif):
     date_data = get_stock_dates()
     end_date = get_latest_stock_date(date_data.get("market_holiday", []))
     start_date = end_date - timedelta(days=n_day)
+    season_date = get_latest_season_date(end_date)
 
     s = get_session()
     stock_list = db_mgr.stock.readall_api(s, type_s=type_s, is_alive=True)
@@ -99,8 +100,17 @@ def get_macd(n_day, type_s, use_weekly, use_monthly, fast, slow, dif):
                 continue
 
             if i == len(stock_data) - 1:  # 取得最後的值
+                income_list = db_mgr.stock_income_statement.read_api(
+                    s, code, start_date=season_date, end_date=season_date, limit=1)
+
+                if len(income_list) == 0:
+                    continue
+
+                income = income_list[0]
+                eps = income.get('eps')
+
                 pbr = get_pbr(end_date, code)
-                tmp[key] = [v['op'], v['hi'], v['lo'], v['co'], v['ch'], int(v['vol']/1000), pbr]
+                tmp[key] = [v['op'], v['hi'], v['lo'], v['co'], v['ch'], int(v['vol']/1000), pbr, eps]
             values.append(v['co'])
 
         if not tmp.get(key):
@@ -118,16 +128,16 @@ def get_macd(n_day, type_s, use_weekly, use_monthly, fast, slow, dif):
             result[key] = tmp[key]
 
     # 顯示輸出
-    header = "{:<16}\t{:>4}\t{:>8}\t{:>8}\t{:>8}\t{:>8}\t{:>8}\t{:>8}\t{:>8}".format(
-        "name(code)", chr(12288), "open", "high", "low", "close", "diff(%)", "volume", "pbr")
-    line = "{:<16}\t{:>4}\t{:>8}\t{:>8}\t{:>8}\t{:>8}\t{:>8}\t{:>8}\t{:>8}".format(
-        "="*16, chr(12288), "="*8, "="*8, "="*8, "="*8, "="*8, "="*8, "="*8)
+    header = "{:<16}\t{:>4}\t{:>8}\t{:>8}\t{:>8}\t{:>8}\t{:>8}\t{:>8}\t{:>8}\t{:>8}".format(
+        "name(code)", chr(12288), "open", "high", "low", "close", "diff(%)", "volume", "pbr", "eps")
+    line = "{:<16}\t{:>4}\t{:>8}\t{:>8}\t{:>8}\t{:>8}\t{:>8}\t{:>8}\t{:>8}\t{:>8}".format(
+        "="*16, chr(12288), "="*8, "="*8, "="*8, "="*8, "="*8, "="*8, "="*8, "="*8)
     click.echo(line)
     click.echo(header)
     click.echo(line)
     for k, v in result.items():
-        msg = "{:<16}\t{:>4}\t{:>8}\t{:>8}\t{:>8}\t{:>8}\t{:>8}\t{:>8}\t{:>8}".format(
-            k, chr(12288), v[0], v[1], v[2], v[3], str(v[4])+'%', v[5], v[6])
+        msg = "{:<16}\t{:>4}\t{:>8}\t{:>8}\t{:>8}\t{:>8}\t{:>8}\t{:>8}\t{:>8}\t{:>8}".format(
+            k, chr(12288), v[0], v[1], v[2], v[3], str(v[4])+'%', v[5], v[6], v[7])
         click.echo(msg)
 
 
@@ -139,6 +149,7 @@ def get_macd(n_day, type_s, use_weekly, use_monthly, fast, slow, dif):
 def get_kdj(type_s, use_weekly, use_monthly, scalar):
     date_data = get_stock_dates()
     end_date = get_latest_stock_date(date_data.get("market_holiday", []))
+    season_date = get_latest_season_date(end_date)
 
     n_day = 9
     start_date = end_date - timedelta(days=scalar*n_day)
@@ -184,8 +195,17 @@ def get_kdj(type_s, use_weekly, use_monthly, scalar):
             low_values.append(v['lo'])
             close_values.append(v['co'])
             if i == len(stock_data) - 1:  # 取得最後的值
+                income_list = db_mgr.stock_income_statement.read_api(
+                    s, code, start_date=season_date, end_date=season_date, limit=1)
+
+                if len(income_list) == 0:
+                    continue
+
+                income = income_list[0]
+                eps = income.get('eps')
+
                 pbr = get_pbr(end_date, code)
-                tmp[key] = [v['op'], v['hi'], v['lo'], v['co'], v['ch'], int(v['vol']/1000), pbr]
+                tmp[key] = [v['op'], v['hi'], v['lo'], v['co'], v['ch'], int(v['vol']/1000), pbr, eps]
                 break
 
         if not tmp.get(key):
@@ -203,14 +223,14 @@ def get_kdj(type_s, use_weekly, use_monthly, scalar):
             result[key] = tmp[key]
 
     # 顯示輸出
-    header = "{:<16}\t{:>4}\t{:>8}\t{:>8}\t{:>8}\t{:>8}\t{:>8}\t{:>8}\t{:>8}".format(
-        "name(code)", chr(12288), "open", "high", "low", "close", "diff(%)", "volume", "pbr")
-    line = "{:<16}\t{:>4}\t{:>8}\t{:>8}\t{:>8}\t{:>8}\t{:>8}\t{:>8}\t{:>8}".format(
-        "="*16, chr(12288), "="*8, "="*8, "="*8, "="*8, "="*8, "="*8, "="*8)
+    header = "{:<16}\t{:>4}\t{:>8}\t{:>8}\t{:>8}\t{:>8}\t{:>8}\t{:>8}\t{:>8}\t{:>8}".format(
+        "name(code)", chr(12288), "open", "high", "low", "close", "diff(%)", "volume", "pbr", "eps")
+    line = "{:<16}\t{:>4}\t{:>8}\t{:>8}\t{:>8}\t{:>8}\t{:>8}\t{:>8}\t{:>8}\t{:>8}".format(
+        "="*16, chr(12288), "="*8, "="*8, "="*8, "="*8, "="*8, "="*8, "="*8, "="*8)
     click.echo(line)
     click.echo(header)
     click.echo(line)
     for k, v in result.items():
-        msg = "{:<16}\t{:>4}\t{:>8}\t{:>8}\t{:>8}\t{:>8}\t{:>8}\t{:>8}\t{:>8}".format(
-            k, chr(12288), v[0], v[1], v[2], v[3], str(v[4])+'%', v[5], v[6])
+        msg = "{:<16}\t{:>4}\t{:>8}\t{:>8}\t{:>8}\t{:>8}\t{:>8}\t{:>8}\t{:>8}\t{:>8}".format(
+            k, chr(12288), v[0], v[1], v[2], v[3], str(v[4])+'%', v[5], v[6], v[7])
         click.echo(msg)

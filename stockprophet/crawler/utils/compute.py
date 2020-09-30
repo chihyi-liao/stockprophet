@@ -84,12 +84,6 @@ def calc_weekly_history_table(s: Session, stock_type: str,
     for str_date in date_data.get("additional_trading_day", []):
         trading_dates.append(datetime.strptime(str_date, "%Y-%m-%d").date())
 
-    # 取得股市類型
-    # type_list = db_mgr.stock_type.read_api(s, name=stock_type)
-    # if len(type_list) == 0:
-    #     logger.error("無法從資料庫取得'<stock_type>'資料")
-    #     return False
-
     stocks = dict()
     # 從資料庫取所有的股票資料
     db_stocks = db_mgr.stock.readall_api(s, type_s=stock_type)
@@ -126,12 +120,14 @@ def calc_weekly_history_table(s: Session, stock_type: str,
         # 依據每日歷史行情去計算每週的歷史資料表
         logger.info("建立%s '%s' 的weekly_history" % (stock_type, wk_start_date.strftime("%Y-%m-%d")))
         for code, stock_id in stocks.items():
-            history_list = db_mgr.stock_daily_history.read_api(s, code, wk_start_date, wk_end_date)
+            history_list = db_mgr.stock_daily_history.read_api(
+                s, code=code, start_date=wk_start_date, end_date=wk_end_date)
             if len(history_list) == 0:
                 continue
 
             wk_data = calc_candlestick(history_list)
-            wk_history_list = db_mgr.stock_weekly_history.read_api(s, code, wk_start_date, wk_end_date)
+            wk_history_list = db_mgr.stock_weekly_history.read_api(
+                s, code=code, start_date=wk_start_date, end_date=wk_end_date)
             if len(wk_history_list) == 0:
                 wk_data['stock_id'] = stock_id
                 wk_data['stock_date_id'] = stock_date_id
@@ -140,17 +136,6 @@ def calc_weekly_history_table(s: Session, stock_type: str,
                 oid = wk_history_list[0]['id']
                 db_mgr.stock_weekly_history.update_api(s, oid, update_data=wk_data)
 
-        # 更新 metadata
-        metadata = db_mgr.stock_metadata.read_api(s)
-        if len(metadata) == 1:
-            mapping_table = {
-                'tse': 'tse_weekly_history_update_date',
-                'otc': 'otc_weekly_history_update_date'}
-            update_column = mapping_table.get(stock_type)
-            if update_column:
-                db_mgr.stock_metadata.update_api(
-                    s, metadata[0]['id'],
-                    update_data={update_column: week_date})
     return True
 
 
@@ -171,12 +156,6 @@ def calc_monthly_history_table(s: Session, stock_type: str,
     trading_dates = []
     for str_date in date_data.get("additional_trading_day", []):
         trading_dates.append(datetime.strptime(str_date, "%Y-%m-%d").date())
-
-    # 取得股市類型
-    # type_list = db_mgr.stock_type.read_api(s, name=stock_type)
-    # if len(type_list) == 0:
-    #     logger.error("無法從資料庫取得'<stock_type>'資料")
-    #     return False
 
     stocks = dict()
     # 從資料庫取所有上市的股票資料
@@ -200,12 +179,12 @@ def calc_monthly_history_table(s: Session, stock_type: str,
 
         # 取得 monthly date
         db_lock.acquire()
-        mn_date_list = db_mgr.stock_monthly_date.read_api(s, mn_start_date)
+        mn_date_list = db_mgr.stock_monthly_date.read_api(s, date=mn_start_date)
         if len(mn_date_list) == 0:
             logger.info("建立 '%s' 的monthly_date", current_date.strftime("%Y-%m-%d"))
             db_mgr.stock_monthly_date.create_api(s, data_list=[{'date': mn_start_date}])
             db_lock.release()
-            mn_date_list = db_mgr.stock_monthly_date.read_api(s, mn_start_date)
+            mn_date_list = db_mgr.stock_monthly_date.read_api(s, date=mn_start_date)
         else:
             db_lock.release()
 
@@ -215,12 +194,14 @@ def calc_monthly_history_table(s: Session, stock_type: str,
         # 依據每日歷史行情去計算每月的歷史資料表
         logger.info("建立%s '%s' 的monthly_history" % (stock_type, mn_start_date.strftime("%Y-%m-%d")))
         for code, stock_id in stocks.items():
-            history_list = db_mgr.stock_daily_history.read_api(s, code, mn_start_date, mn_end_date)
+            history_list = db_mgr.stock_daily_history.read_api(
+                s, code=code, start_date=mn_start_date, end_date=mn_end_date)
             if len(history_list) == 0:
                 continue
 
             mn_data = calc_candlestick(history_list)
-            mn_history_list = db_mgr.stock_monthly_history.read_api(s, code, mn_start_date, mn_end_date)
+            mn_history_list = db_mgr.stock_monthly_history.read_api(
+                s, code=code, start_date=mn_start_date, end_date=mn_end_date)
             if len(mn_history_list) == 0:
                 mn_data['stock_id'] = stock_id
                 mn_data['stock_date_id'] = stock_date_id
@@ -229,15 +210,47 @@ def calc_monthly_history_table(s: Session, stock_type: str,
                 oid = mn_history_list[0]['id']
                 db_mgr.stock_monthly_history.update_api(s, oid, update_data=mn_data)
 
-        # 更新 metadata
-        metadata = db_mgr.stock_metadata.read_api(s)
-        if len(metadata) == 1:
-            mapping_table = {
-                'tse': 'tse_monthly_history_update_date',
-                'otc': 'otc_monthly_history_update_date'}
-            update_column = mapping_table.get(stock_type)
-            if update_column:
-                db_mgr.stock_metadata.update_api(
-                    s, metadata[0]['id'],
-                    update_data={update_column: month_date})
+    return True
+
+
+def calc_metadata(s: Session, type_s: str, start_date: date, end_date: date):
+    stock_list = db_mgr.stock.readall_api(s, type_s=type_s)
+    logger.info("更新 stock metadata")
+    for stock in stock_list:
+        code = stock['code']
+        stock_id = stock['id']
+        first_history = db_mgr.stock_daily_history.read_api(s, code, start_date=start_date, limit=1)
+        last_history = db_mgr.stock_daily_history.read_api(s, code, end_date=end_date, order_desc=True, limit=1)
+        data = dict()
+        data['stock_id'] = stock_id
+        if len(first_history) == 1 and len(last_history) == 1:
+            first_date = first_history[0]['date']
+            last_date = last_history[0]['date']
+            data['daily_history_create_date'] = first_date
+            data['daily_history_update_date'] = last_date
+
+        first_wk_history = db_mgr.stock_weekly_history.read_api(s, code, start_date=start_date, limit=1)
+        last_wk_history = db_mgr.stock_weekly_history.read_api(s, code, end_date=end_date, order_desc=True, limit=1)
+        if len(first_wk_history) == 1 and len(last_wk_history) == 1:
+            first_date = first_wk_history[0]['date']
+            last_date = last_wk_history[0]['date']
+            data['weekly_history_create_date'] = first_date
+            data['weekly_history_update_date'] = last_date
+
+        first_mn_history = db_mgr.stock_monthly_history.read_api(s, code, start_date=start_date, limit=1)
+        last_mn_history = db_mgr.stock_monthly_history.read_api(s, code, end_date=end_date, order_desc=True, limit=1)
+        if len(first_mn_history) == 1 and len(last_mn_history) == 1:
+            first_date = first_mn_history[0]['date']
+            last_date = last_mn_history[0]['date']
+            data['monthly_history_create_date'] = first_date
+            data['monthly_history_update_date'] = last_date
+
+        db_lock.acquire()
+        metadata_list = db_mgr.stock_metadata.read_api(s, code=code)
+        if len(metadata_list) == 0:
+            db_mgr.stock_metadata.create_api(s, data_list=[data])
+        else:
+            db_mgr.stock_metadata.update_api(s, metadata_list[0]['id'], update_data=data)
+        db_lock.release()
+
     return True

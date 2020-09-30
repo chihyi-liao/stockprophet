@@ -1,6 +1,8 @@
 from sqlalchemy.orm.session import Session
-from sqlalchemy import exc, select, update, delete
+from sqlalchemy import exc, select, update, delete, asc
 
+from stockprophet.db.model.stock_type import StockType
+from stockprophet.db.model.stock import Stock
 from stockprophet.db.model.stock_metadata import StockMetadata
 from stockprophet.utils import get_logger
 
@@ -9,61 +11,84 @@ logger = get_logger(__name__)
 
 
 def create_api(s: Session, data_list: list = None) -> bool:
-    """建立 metadata 資料表, 限制只有一筆紀錄在資料表"""
+    """依據資料清單建立metadata資料"""
     result = False
     if data_list is None:
         data_list = []
-
-    # 檢查是否已存在資料
     try:
-        obj = StockMetadata.__table__.c
-        stmt = select([obj.id]).limit(1)
-        tmp = [{'id': r[0]} for r in s.execute(stmt)]
-        if len(tmp) > 0:
-            return result
+        if data_list:
+            s.execute(StockMetadata.__table__.insert(), data_list)
+            s.commit()
+            result = True
     except exc.SQLAlchemyError as e:
         logger.error(str(e))
+    finally:
         return result
 
-    # 檢查輸入資料是否一筆
-    if len(data_list) == 1:
-        try:
-            if data_list:
-                s.execute(StockMetadata.__table__.insert(), data_list)
-                s.commit()
-                result = True
-        except exc.SQLAlchemyError as e:
-            logger.error(str(e))
-        finally:
-            return result
-    return result
 
-
-def read_api(s: Session) -> list:
-    """依據名稱查詢股市型態"""
+def read_api(s: Session, code: str) -> list:
+    """依據股票代號查詢metadata"""
     result = []
     try:
-        obj = StockMetadata.__table__.c
+        m_obj = StockMetadata.__table__.c
+        s_obj = Stock.__table__.c
         stmt = select([
-            obj.id, obj.tse_stock_info_update_date,
-            obj.tse_weekly_history_update_date,
-            obj.tse_monthly_history_update_date,
-            obj.otc_stock_info_update_date,
-            obj.otc_weekly_history_update_date,
-            obj.otc_monthly_history_update_date,
-            obj.mops_income_statement_update_date,
-            obj.mops_balance_sheet_update_date,
-        ]).limit(1)
+            m_obj.id, s_obj.code, s_obj.name,
+            m_obj.daily_history_create_date, m_obj.daily_history_update_date,
+            m_obj.weekly_history_create_date, m_obj.weekly_history_update_date,
+            m_obj.monthly_history_create_date, m_obj.monthly_history_update_date,
+            m_obj.income_create_date, m_obj.income_update_date,
+            m_obj.balance_create_date, m_obj.balance_update_date]
+        ).select_from(
+            StockMetadata.__table__.join(
+                Stock.__table__, s_obj.id == m_obj.stock_id
+            )
+        ).where(s_obj.code == code).limit(1)
+
         for r in s.execute(stmt):
             result.append({
-                'id': r[0], 'tse_stock_info_update_date': r[1],
-                'tse_weekly_history_update_date': r[2],
-                'tse_monthly_history_update_date': r[3],
-                'otc_stock_info_update_date': r[4],
-                'otc_weekly_history_update_date': r[5],
-                'otc_monthly_history_update_date': r[6],
-                'mops_income_statement_update_date': r[7],
-                'mops_balance_sheet_update_date': r[8]})
+                'id': r[0], 'code': r[1], 'name': r[2],
+                'daily_history_create_date': r[3], 'daily_history_update_date': r[4],
+                'weekly_history_create_date': r[5], 'weekly_history_update_date': r[6],
+                'monthly_history_create_date': r[7], 'monthly_history_update_date': r[8],
+                'income_create_date': r[9], 'income_update_date': r[10],
+                'balance_create_date': r[11], 'balance_update_date': r[12]})
+
+    except exc.SQLAlchemyError as e:
+        logger.error(str(e))
+    finally:
+        return result
+
+
+def readall_api(s: Session, type_s: str) -> list:
+    """查詢所有個股的metadata資料"""
+    result = []
+    try:
+        s_obj = Stock.__table__.c
+        m_obj = StockMetadata.__table__.c
+        t_obj = StockType.__table__.c
+        subquery = select([t_obj.id]).where(t_obj.name == type_s).limit(1)
+        stmt = select([
+            m_obj.id, s_obj.code, s_obj.name,
+            m_obj.daily_history_create_date, m_obj.daily_history_update_date,
+            m_obj.weekly_history_create_date, m_obj.weekly_history_update_date,
+            m_obj.monthly_history_create_date, m_obj.monthly_history_update_date,
+            m_obj.income_create_date, m_obj.income_update_date,
+            m_obj.balance_create_date, m_obj.balance_update_date]
+        ).select_from(
+            StockMetadata.__table__.join(
+                Stock.__table__, s_obj.id == m_obj.stock_id
+            )
+        ).where(s_obj.stock_type_id == subquery).order_by(asc(m_obj.code))
+
+        for r in s.execute(stmt):
+            result.append({
+                'id': r[0], 'code': r[1], 'name': r[2],
+                'daily_history_create_date': r[3], 'daily_history_update_date': r[4],
+                'weekly_history_create_date': r[5], 'weekly_history_update_date': r[6],
+                'monthly_history_create_date': r[7], 'monthly_history_update_date': r[8],
+                'income_create_date': r[9], 'income_update_date': r[10],
+                'balance_create_date': r[11], 'balance_update_date': r[12]})
     except exc.SQLAlchemyError as e:
         logger.error(str(e))
     finally:
@@ -71,7 +96,7 @@ def read_api(s: Session) -> list:
 
 
 def update_api(s: Session, oid: int, update_data: dict = None) -> bool:
-    """依據id更新 metadata"""
+    """依據id更新metadata資料"""
     result = False
     if update_data is None:
         update_data = {}
@@ -90,7 +115,7 @@ def update_api(s: Session, oid: int, update_data: dict = None) -> bool:
 
 
 def delete_api(s: Session, oid: int) -> bool:
-    """依據id刪除 metadata"""
+    """依據id刪除metadata資料"""
     result = False
     try:
         obj = StockMetadata.__table__.c

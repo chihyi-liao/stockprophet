@@ -10,8 +10,9 @@ from .utils.common import (
     convert_to_direction, convert_change_to_string
 )
 from .utils.date import get_latest_stock_date, date_range, is_weekday, check_crawler_date_settings
-from .utils.compute import calc_weekly_history_table, calc_monthly_history_table
-
+from .utils.compute import (
+    calc_weekly_history_table, calc_monthly_history_table, calc_metadata
+)
 
 OTC_CATEGORY = [
     ('02', '食品工業'), ('03', '塑膠工業'), ('04', '紡織纖維'), ('05', '電機機械'),
@@ -120,25 +121,31 @@ def fetch_stock_category(dt: date, retry: int = 3) -> dict:
 class CrawlerTask(threading.Thread):
     def __init__(self, start_date: date = None, end_date: date = None, build_period_table=False):
         threading.Thread.__init__(self)
-        default_date = date(2007, 7, 2)
-
         self._stock_type = "otc"
         self._session = create_local_session()
-        self._date_data = get_stock_dates()
         self._loss_fetch = []
         self._build_period_table = build_period_table
         if not start_date:
-            self.start_date = default_date
+            self.start_date = self.default_date()
         else:
             self.start_date = start_date
 
         if not end_date:
-            self.end_date = get_latest_stock_date(self._date_data.get("market_holiday", []))
+            self.end_date = self.latest_date()
         else:
             self.end_date = end_date
 
         # 檢查日期設定
-        check_crawler_date_settings(self.start_date, self.end_date, default_date)
+        check_crawler_date_settings(self.start_date, self.end_date, self.default_date())
+
+    @staticmethod
+    def default_date() -> date:
+        return date(2007, 7, 2)
+
+    @staticmethod
+    def latest_date() -> date:
+        date_data = get_stock_dates()
+        return get_latest_stock_date(date_data.get("market_holiday", []))
 
     def build_stock_table(self) -> bool:
         logger.info("build otc stock table")
@@ -148,7 +155,7 @@ class CrawlerTask(threading.Thread):
             logger.error("無法從資料庫取得<stock_type>資料")
             return False
 
-        dt = get_latest_stock_date(self._date_data.get("market_holiday", []))
+        dt = self.latest_date()
         fetch_data = fetch_stock_category(dt)
         if not fetch_data:
             logger.error("無法取得 '%s' 完整類股的資料" % (self._stock_type, ))
@@ -202,25 +209,20 @@ class CrawlerTask(threading.Thread):
                 stock_list = db_mgr.stock.read_api(self._session, type_s=self._stock_type, code=code)
                 db_mgr.stock.update_api(self._session, oid=stock_list[0]['id'], update_data=update_data)
 
-        # 更新 metadata
-        metadata = db_mgr.stock_metadata.read_api(self._session)
-        if len(metadata) == 1:
-            db_mgr.stock_metadata.update_api(
-                self._session, metadata[0]['id'],
-                update_data={'otc_stock_info_update_date': dt})
         return True
 
     def build_stock_daily_history_table(self) -> bool:
         logger.info("build otc stock_daily_history table")
 
+        date_data = get_stock_dates()
         # 取得所有節慶的休市日期(包含颱風假)
         holiday_list = []
-        for str_date in self._date_data.get("market_holiday", []):
+        for str_date in date_data.get("market_holiday", []):
             holiday_list.append(datetime.strptime(str_date, "%Y-%m-%d").date())
 
         # 取得補上班日的股市日期
         trading_list = []
-        for str_date in self._date_data.get("addition_trading_day", []):
+        for str_date in date_data.get("additional_trading_day", []):
             trading_list.append(datetime.strptime(str_date, "%Y-%m-%d").date())
 
         # 取得每日歷史行情的日期範圍
@@ -240,7 +242,7 @@ class CrawlerTask(threading.Thread):
 
         # 取得未分類股市類別, 目的是已下市或暫停交易的歷史資料
         unknown_category_id = None
-        unknown_category = db_mgr.stock_category.read_api(self._session, '未分類')
+        unknown_category = db_mgr.stock_category.read_api(self._session, name='未分類')
         if unknown_category:
             unknown_category_id = unknown_category[0]['id']
 
@@ -269,7 +271,7 @@ class CrawlerTask(threading.Thread):
 
             # 從資料庫找尋是否有stock_date, 沒有則建立
             db_lock.acquire()
-            if len(db_mgr.stock_daily_date.read_api(self._session, current_date)) == 0:
+            if len(db_mgr.stock_daily_date.read_api(self._session, date=current_date)) == 0:
                 if not db_mgr.stock_daily_date.create_api(self._session, data_list=[{'date': current_date}]):
                     logger.error("無法建立'%s'日期資料表", current_date.strftime("%Y-%m-%d"))
                     db_lock.release()
@@ -280,7 +282,7 @@ class CrawlerTask(threading.Thread):
                 db_lock.release()
 
             # 取得 stock_date_id
-            stock_date_list = db_mgr.stock_daily_date.read_api(self._session, current_date)
+            stock_date_list = db_mgr.stock_daily_date.read_api(self._session, date=current_date)
             if len(stock_date_list) == 0:
                 logger.error("無法取得'%s'日期資料表", current_date.strftime("%Y-%m-%d"))
                 continue
@@ -330,46 +332,65 @@ class CrawlerTask(threading.Thread):
         return True
 
     def build_weekly_history_table(self) -> bool:
-        if calc_weekly_history_table(self._session, self._stock_type,
-                                     self.start_date, self.end_date):
+        if calc_weekly_history_table(self._session, stock_type=self._stock_type,
+                                     start_date=self.start_date, end_date=self.end_date):
             return True
         return False
 
     def build_monthly_history_table(self) -> bool:
-        if calc_monthly_history_table(self._session, self._stock_type,
-                                      self.start_date, self.end_date):
+        if calc_monthly_history_table(self._session, stock_type=self._stock_type,
+                                      start_date=self.start_date, end_date=self.end_date):
+            return True
+        return False
+
+    def update_metadata_table(self) -> bool:
+        if calc_metadata(self._session, type_s=self._stock_type,
+                         start_date=self.start_date, end_date=self.end_date):
             return True
         return False
 
     def run(self):
         logger.info("Starting OTC thread")
-        metadata = db_mgr.stock_metadata.read_api(self._session)
-        stock_info_update_date = None
-        weekly_history_update_date = None
-        monthly_history_update_date = None
-        if len(metadata) == 1:
-            stock_info_update_date = metadata[0]['otc_stock_info_update_date']
-            weekly_history_update_date = metadata[0]['otc_weekly_history_update_date']
-            monthly_history_update_date = metadata[0]['otc_monthly_history_update_date']
+        metadata_list = []
+        stock_list = db_mgr.stock.readall_api(self._session, type_s=self._stock_type, is_alive=True)
+        if len(stock_list) > 0:
+            stock = stock_list[0]
+            metadata_list = db_mgr.stock_metadata.read_api(self._session, code=stock['code'])
 
         if self._build_period_table:
-            if weekly_history_update_date:
-                self.start_date = weekly_history_update_date
+            if len(metadata_list) == 1:
+                self.start_date = metadata_list[0]['weekly_history_update_date']
             self.build_weekly_history_table()
 
-            if monthly_history_update_date:
-                self.start_date = monthly_history_update_date
+            if len(metadata_list) == 1:
+                self.start_date = metadata_list[0]['monthly_history_update_date']
             self.build_monthly_history_table()
+            self.update_metadata_table()
             self._session.close()
             logger.info("Finish OTC thread")
             return
-
-        if stock_info_update_date and stock_info_update_date >= self.end_date:
-            self.build_stock_daily_history_table()
         else:
-            if self.build_stock_table() is True:
-                self.build_stock_daily_history_table()
-        if len(self._loss_fetch) != 0:
-            logger.warning("缺少 %s 的日期資料, 請重新執行爬蟲", self._loss_fetch)
-        self._session.close()
-        logger.info("Finish OTC thread")
+            is_failed_stock = True
+            for retry in range(3):
+                if len(metadata_list) == 1:
+                    self.start_date = metadata_list[0]['daily_history_update_date']
+
+                if self.start_date == self.latest_date():
+                    is_failed_stock = False
+                    break
+                else:
+                    if self.build_stock_table() is True:
+                        self.build_stock_daily_history_table()
+                        self.update_metadata_table()
+                        is_failed_stock = False
+                        break
+
+            if is_failed_stock:
+                logger.warning("無法取得完整的 stock 資料, 請稍後重新執行爬蟲")
+
+            if len(self._loss_fetch) != 0:
+                logger.warning("缺少 %s 的日期資料, 請重新執行爬蟲", self._loss_fetch)
+
+            self._session.close()
+            logger.info("Finish OTC thread")
+            return

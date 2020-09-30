@@ -1,6 +1,6 @@
 from stockprophet.cli import entry_point
 from stockprophet.crawler import (
-    init_stock_type, init_stock_category, init_stock_metadata
+    init_stock_type, init_stock_category
 )
 from stockprophet.db import init_db
 
@@ -22,7 +22,6 @@ def preprocessing() -> bool:
     # noinspection PyBroadException
     try:
         init_db(db_config)
-        init_stock_metadata()
         init_stock_category()
         init_stock_type()
         result = True

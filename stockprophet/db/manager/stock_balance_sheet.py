@@ -1,7 +1,7 @@
 import datetime
 
 from sqlalchemy.orm.session import Session
-from sqlalchemy import exc, select, update, delete, asc
+from sqlalchemy import exc, select, update, delete, asc, desc
 
 from stockprophet.db.model.stock import Stock
 from stockprophet.db.model.stock_type import StockType
@@ -30,7 +30,8 @@ def create_api(s: Session, data_list: list = None) -> bool:
 
 
 def read_api(s: Session, code: str,
-             start_date: datetime.date = None, end_date: datetime.date = None, limit: int = 100) -> list:
+             start_date: datetime.date = None, end_date: datetime.date = None,
+             order_desc: bool = False, limit: int = 100) -> list:
     """依據股票代號查詢每季資產負債表資料"""
     result = []
     try:
@@ -55,7 +56,12 @@ def read_api(s: Session, code: str,
             stmt = stmt.where(d_obj.date >= start_date)
         if end_date is not None:
             stmt = stmt.where(d_obj.date <= end_date)
-        stmt = stmt.order_by(asc(d_obj.date))
+
+        if order_desc:
+            stmt = stmt.order_by(desc(d_obj.date))
+        else:
+            stmt = stmt.order_by(asc(d_obj.date))
+
         if limit != 0:
             stmt = stmt.limit(limit)
         for r in s.execute(stmt):

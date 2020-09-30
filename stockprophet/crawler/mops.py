@@ -1,7 +1,6 @@
 import random
-import time
 import threading
-from datetime import date
+from datetime import date, timedelta
 from typing import Optional
 
 from lxml import html
@@ -177,8 +176,11 @@ def fetch_income_statement(type_s: str, code: str, year: int, season: int, step:
                     values = ["".join(r.split()) for r in raw_data]
                     if len(titles) == 1 and len(values) > 0:
                         result[titles[0]] = values[0]
+                if not result:
+                    logger.warning("200: %s", resp.content)
                 break
         else:
+            logger.warning(resp.content)
             logger.warning("股市代號: %s, 無法取得%s-Q%s綜合損益表資料", code, year, season)
     return translate_income_statement(result)
 
@@ -223,8 +225,11 @@ def fetch_balance_sheet(type_s: str, code: str, year: int, season: int, step: st
                     values = ["".join(r.split()) for r in raw_data]
                     if len(titles) == 1 and len(values) > 0:
                         result[titles[0]] = values[0]
+                if not result:
+                    logger.warning("200: %s", resp.content)
                 break
         else:
+            logger.warning(resp.content)
             logger.warning("股市代號: %s, 無法取得%s-Q%s資產負債表資料", code, year, season)
     return translate_balance_sheet(result)
 
@@ -234,8 +239,6 @@ class CrawlerTask(threading.Thread):
                  build_income_table: bool = False, build_balance_table: bool = False,
                  build_revenue_table: bool = False):
         threading.Thread.__init__(self)
-        default_date = date(2013, 1, 1)
-
         self._session = create_local_session()
         self._date_data = get_stock_dates()
         self._build_income_table = build_income_table
@@ -243,7 +246,7 @@ class CrawlerTask(threading.Thread):
         self._build_revenue_table = build_revenue_table
         self._loss_fetch = []
         if not start_date:
-            self.start_date = default_date
+            self.start_date = self.default_date()
         else:
             self.start_date = start_date
 
@@ -253,7 +256,11 @@ class CrawlerTask(threading.Thread):
             self.end_date = end_date
 
         # 檢查日期設定
-        check_crawler_date_settings(self.start_date, self.end_date, default_date)
+        check_crawler_date_settings(self.start_date, self.end_date, self.default_date())
+
+    @staticmethod
+    def default_date() -> date:
+        return date(2013, 1, 1)
 
     def build_balance_sheet_table(self):
         logger.info("build stock balance table")
@@ -279,11 +286,30 @@ class CrawlerTask(threading.Thread):
                 logger.warning("資料庫無任何上市股票, 請先取得股票資訊")
                 return
 
-            for _j, stock in enumerate(stock_list, start=1):
+            for stock in stock_list:
                 code = stock['code']
                 # 過濾 ETF 有關的股票
                 if etf_id is not None and stock['stock_category_id'] == etf_id:
                     continue
+
+                self.start_date = self.default_date()
+
+                # 檢查 metadata 的日期
+                db_lock.acquire()
+                metadata_list = db_mgr.stock_metadata.read_api(self._session, code=code)
+                if len(metadata_list) == 1:
+                    update_date = metadata_list[0]['balance_update_date']
+                    if update_date:
+                        self.start_date = update_date
+                    else:
+                        daily_create_date = metadata_list[0]['daily_history_create_date']
+                        if daily_create_date and daily_create_date >= self.default_date():
+                            _, et = season_range(daily_create_date)
+                            st, _ = season_range(et+timedelta(days=1))
+                            self.start_date = st
+                else:
+                    db_mgr.stock_metadata.create_api(self._session, data_list=[{'stock_id': stock['id']}])
+                db_lock.release()
 
                 start_date, _ = season_range(self.start_date)
                 for current_date in date_range(start_date, self.end_date):
@@ -297,6 +323,16 @@ class CrawlerTask(threading.Thread):
                     season_date = sn_start_date
                     if current_date != season_date:
                         continue
+
+                    metadata = dict()
+                    metadata_list = db_mgr.stock_metadata.read_api(self._session, code=code)
+                    if len(metadata_list) != 1:  # should never run here
+                        raise Exception("metadata list is 0")
+
+                    metadata_id = metadata_list[0]['id']
+                    create_date = metadata_list[0]['balance_create_date']
+                    if not create_date:
+                        metadata['balance_create_date'] = sn_start_date
 
                     # 取得 season date
                     db_lock.acquire()
@@ -330,22 +366,17 @@ class CrawlerTask(threading.Thread):
                     if data:
                         data['stock_id'] = stock['id']
                         data['stock_date_id'] = stock_date_id
-                        logger.info(
-                            "%s(%s)建立 '%s' 的season_date" % (
-                                stock['name'], stock['code'], sn_start_date.strftime("%Y-%m-%d")))
                         db_mgr.stock_balance_sheet.create_api(self._session, data_list=[data])
+                        metadata['balance_update_date'] = sn_start_date
+                        db_mgr.stock_metadata.update_api(self._session, oid=metadata_id, update_data=metadata)
+                        logger.info(
+                            "%s(%s)建立 '%s' 的資產負債表" % (
+                                stock['name'], stock['code'], sn_start_date.strftime("%Y-%m-%d")))
                     else:
                         logger.warning(
                             "%s(%s)找不到'%s-%s'資產負債資料" % (stock['name'], stock['code'], year, season))
                         self._loss_fetch.append(('balance_sheet', stock['code'], year, season))
-
-        # 更新 metadata
-        start_dt, _ = season_range(self.end_date)
-        metadata = db_mgr.stock_metadata.read_api(self._session)
-        if len(metadata) == 1:
-            db_mgr.stock_metadata.update_api(
-                self._session, metadata[0]['id'],
-                update_data={'mops_balance_sheet_update_date': start_dt})
+                        break
 
     def build_income_statement_table(self):
         logger.info("build stock income statement table")
@@ -357,7 +388,7 @@ class CrawlerTask(threading.Thread):
             etf_id = etf_list[0]['id']
 
         # 金融股查找需要特定參數
-        bank_list = db_mgr.stock_category.read_api(self._session, '金融保險')
+        bank_list = db_mgr.stock_category.read_api(self._session, name='金融保險')
         bank_id = None
         if len(bank_list) == 1:
             bank_id = bank_list[0]['id']
@@ -371,11 +402,30 @@ class CrawlerTask(threading.Thread):
                 logger.warning("資料庫無任何上市股票, 請先取得股票資訊")
                 return
 
-            for _j, stock in enumerate(stock_list, start=1):
+            for stock in stock_list:
                 code = stock['code']
                 # 過濾 ETF 有關的股票
                 if etf_id is not None and stock['stock_category_id'] == etf_id:
                     continue
+
+                self.start_date = self.default_date()
+
+                # 檢查 metadata 的日期
+                db_lock.acquire()
+                metadata_list = db_mgr.stock_metadata.read_api(self._session, code=code)
+                if len(metadata_list) == 1:
+                    update_date = metadata_list[0]['income_update_date']
+                    if update_date:
+                        self.start_date = update_date
+                    else:
+                        daily_create_date = metadata_list[0]['daily_history_create_date']
+                        if daily_create_date and daily_create_date >= self.default_date():
+                            _, et = season_range(daily_create_date)
+                            st, _ = season_range(et+timedelta(days=1))
+                            self.start_date = st
+                else:
+                    db_mgr.stock_metadata.create_api(self._session, data_list=[{'stock_id': stock['id']}])
+                db_lock.release()
 
                 start_date, _ = season_range(self.start_date)
                 for current_date in date_range(self.start_date, self.end_date):
@@ -390,14 +440,24 @@ class CrawlerTask(threading.Thread):
                     if current_date != season_date:
                         continue
 
+                    metadata = dict()
+                    metadata_list = db_mgr.stock_metadata.read_api(self._session, code=code)
+                    if len(metadata_list) != 1:  # should never run here
+                        raise Exception("metadata list is 0")
+
+                    metadata_id = metadata_list[0]['id']
+                    create_date = metadata_list[0]['income_create_date']
+                    if not create_date:
+                        metadata['income_create_date'] = sn_start_date
+
                     # 取得 season date
                     db_lock.acquire()
-                    sn_date_list = db_mgr.stock_season_date.read_api(self._session, sn_start_date)
+                    sn_date_list = db_mgr.stock_season_date.read_api(self._session, date=sn_start_date)
                     if len(sn_date_list) == 0:
                         logger.info("建立 '%s' 的season_date", sn_start_date.strftime("%Y-%m-%d"))
                         db_mgr.stock_season_date.create_api(self._session, data_list=[{'date': sn_start_date}])
                         db_lock.release()
-                        sn_date_list = db_mgr.stock_season_date.read_api(self._session, sn_start_date)
+                        sn_date_list = db_mgr.stock_season_date.read_api(self._session, date=sn_start_date)
                     else:
                         db_lock.release()
 
@@ -422,21 +482,16 @@ class CrawlerTask(threading.Thread):
                     if data:
                         data['stock_id'] = stock['id']
                         data['stock_date_id'] = stock_date_id
-                        logger.info("%s(%s)建立 '%s' 的season_date" % (
-                            stock['name'], stock['code'], sn_start_date.strftime("%Y-%m-%d")))
                         db_mgr.stock_income_statement.create_api(self._session, data_list=[data])
+                        metadata['income_update_date'] = sn_start_date
+                        db_mgr.stock_metadata.update_api(self._session, oid=metadata_id, update_data=metadata)
+                        logger.info("%s(%s)建立 '%s' 的綜合損益表" % (
+                            stock['name'], stock['code'], sn_start_date.strftime("%Y-%m-%d")))
                     else:
                         logger.warning(
                             "%s(%s)找不到'%s-%s'綜合損益資料" % (stock['name'], stock['code'], year, season))
                         self._loss_fetch.append(('income_statement', stock['code'], year, season))
-
-        # 更新 metadata
-        start_dt, _ = season_range(self.end_date)
-        metadata = db_mgr.stock_metadata.read_api(self._session)
-        if len(metadata) == 1:
-            db_mgr.stock_metadata.update_api(
-                self._session, metadata[0]['id'],
-                update_data={'mops_income_statement_update_date': start_dt})
+                        break
 
     def build_monthly_revenue_table(self):
         logger.info("build stock monthly revenue table")
@@ -457,12 +512,12 @@ class CrawlerTask(threading.Thread):
 
                 # 取得 month date
                 db_lock.acquire()
-                mn_date_list = db_mgr.stock_monthly_date.read_api(self._session, mn_start_date)
+                mn_date_list = db_mgr.stock_monthly_date.read_api(self._session, date=mn_start_date)
                 if len(mn_date_list) == 0:
                     logger.info("建立 '%s' 的month_date", mn_start_date.strftime("%Y-%m-%d"))
                     db_mgr.stock_monthly_date.create_api(self._session, data_list=[{'date': mn_start_date}])
                     db_lock.release()
-                    mn_date_list = db_mgr.stock_season_date.read_api(self._session, mn_start_date)
+                    mn_date_list = db_mgr.stock_season_date.read_api(self._session, date=mn_start_date)
                 else:
                     db_lock.release()
 
@@ -500,29 +555,16 @@ class CrawlerTask(threading.Thread):
 
     def run(self):
         logger.info("Starting MOPS thread")
-        while True:
-            metadata = db_mgr.stock_metadata.read_api(self._session)
-            if len(metadata) == 1:
-                tse_stock_update_date = metadata[0]['tse_stock_info_update_date']
-                otc_stock_update_date = metadata[0]['otc_stock_info_update_date']
-                income_update_date = metadata[0]['mops_income_statement_update_date']
-                balance_update_date = metadata[0]['mops_balance_sheet_update_date']
-                if tse_stock_update_date or otc_stock_update_date:  # 確認資料庫有個股資訊
-                    if self._build_balance_table:
-                        if balance_update_date:
-                            self.start_date = balance_update_date
-                        self.build_balance_sheet_table()
-                    elif self._build_income_table:
-                        if income_update_date:
-                            self.start_date = income_update_date
-                        self.build_income_statement_table()
-                    elif self._build_revenue_table:
-                        self.build_monthly_revenue_table()
-                    else:
-                        logger.warning("缺少指定建立table的設定參數")
-                    if len(self._loss_fetch) != 0:
-                        logger.warning("缺少 %s 的日期資料", self._loss_fetch)
-                    self._session.close()
-                    break
-            time.sleep(30)
+        if self._build_balance_table:
+            self.build_balance_sheet_table()
+        elif self._build_income_table:
+            self.build_income_statement_table()
+        elif self._build_revenue_table:
+            self.build_monthly_revenue_table()
+        else:
+            logger.warning("缺少指定建立table的設定參數")
+
+        if len(self._loss_fetch) != 0:
+            logger.warning("缺少 %s 的日期資料", self._loss_fetch)
+        self._session.close()
         logger.info("Finish MOPS thread")

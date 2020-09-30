@@ -39,21 +39,3 @@ def init_stock_category():
         db_mgr.stock_category.create_api(s, data_list)
     db_lock.release()
     s.close()
-
-
-def init_stock_metadata():
-    data_list = [{
-        'tse_stock_info_update_date': None,
-        'tse_weekly_history_update_date': None,
-        'tse_monthly_history_update_date': None,
-        'tse_mops_update_date': None,
-        'otc_stock_info_update_date': None,
-        'otc_weekly_history_update_date': None,
-        'otc_monthly_history_update_date': None,
-        'otc_mops_update_date': None}]
-    s = get_session()
-    db_lock.acquire()
-    if len(db_mgr.stock_metadata.read_api(s)) == 0:
-        db_mgr.stock_metadata.create_api(s, data_list)
-    db_lock.release()
-    s.close()
