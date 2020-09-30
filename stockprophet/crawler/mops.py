@@ -109,7 +109,7 @@ def fetch_monthly_revenue(type_s: str, year: int, month: int, retry: int = 3):
     kwargs = dict()
     kwargs['headers'] = req.default_headers()
 
-    req.wait_interval = random.randint(3, 5)
+    req.wait_interval = random.randint(5, 10)
     for i in range(retry):
         resp = req.send_data('GET', url, **kwargs)
         if resp.status_code == 200:
@@ -154,7 +154,7 @@ def fetch_income_statement(type_s: str, code: str, year: int, season: int, step:
     if not stock_type:
         return result
 
-    req.wait_interval = random.randint(3, 5)
+    req.wait_interval = random.randint(5, 10)
     kwargs['data']['TYPEK'] = stock_type
     for i in range(retry):
         resp = req.send_data('POST', url, **kwargs)
@@ -166,7 +166,7 @@ def fetch_income_statement(type_s: str, code: str, year: int, season: int, step:
                 continue
             else:
                 # 解析綜合損益表
-                req.wait_interval = random.randint(3, 5)
+                req.wait_interval = random.randint(5, 10)
                 subtree = tree.xpath("//table[@class='hasBorder']/tr")
                 for item in subtree:
                     titles = item.xpath(
@@ -203,7 +203,7 @@ def fetch_balance_sheet(type_s: str, code: str, year: int, season: int, step: st
     if not stock_type:
         return result
 
-    req.wait_interval = random.randint(3, 5)
+    req.wait_interval = random.randint(5, 10)
     kwargs['data']['TYPEK'] = stock_type
     for i in range(retry):
         resp = req.send_data('POST', url, **kwargs)
@@ -214,7 +214,7 @@ def fetch_balance_sheet(type_s: str, code: str, year: int, season: int, step: st
                 logger.warning("股市代號: %s, 無法取得%s-Q%s資產負債表資料(過載)", code, year, season)
                 continue
             else:
-                req.wait_interval = random.randint(3, 5)
+                req.wait_interval = random.randint(5, 10)
                 subtree = tree.xpath("//table[@class='hasBorder']/tr")
                 for item in subtree:
                     titles = item.xpath(
