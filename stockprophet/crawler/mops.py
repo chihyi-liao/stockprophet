@@ -475,20 +475,21 @@ class CrawlerTask(threading.Thread):
                 db_lock.acquire()
                 metadata_list = db_mgr.stock_metadata.read_api(self._session, code=code)
                 if len(metadata_list) == 1:
-                    update_date = metadata_list[0]['balance_update_date']
-                    if update_date:
-                        self.start_date = update_date
-                    else:
-                        daily_create_date = metadata_list[0]['daily_history_create_date']
-                        if daily_create_date and daily_create_date >= self.default_date():
-                            _, et = season_range(daily_create_date)
-                            st, _ = season_range(et+timedelta(days=1))
-                            self.start_date = st
+                    daily_create_date = metadata_list[0]['daily_history_create_date']
+                    if daily_create_date and daily_create_date >= self.default_date():
+                        _, et = season_range(daily_create_date)
+                        st, _ = season_range(et+timedelta(days=1))
+                        self.start_date = st
                 else:
                     db_mgr.stock_metadata.create_api(self._session, data_list=[{'stock_id': stock['id']}])
                 db_lock.release()
 
-                start_date, _ = season_range(self.start_date)
+                if self.start_date <= self.default_date():
+                    _, et = season_range(self.default_date())
+                    start_date, _ = season_range(et + timedelta(days=1))
+                else:
+                    start_date, _ = season_range(self.start_date)
+
                 for current_date in date_range(start_date, self.end_date):
                     # 判斷時間已做到最新的報表
                     year, season = date_to_year_season(current_date)
@@ -591,20 +592,21 @@ class CrawlerTask(threading.Thread):
                 db_lock.acquire()
                 metadata_list = db_mgr.stock_metadata.read_api(self._session, code=code)
                 if len(metadata_list) == 1:
-                    update_date = metadata_list[0]['income_update_date']
-                    if update_date:
-                        self.start_date = update_date
-                    else:
-                        daily_create_date = metadata_list[0]['daily_history_create_date']
-                        if daily_create_date and daily_create_date >= self.default_date():
-                            _, et = season_range(daily_create_date)
-                            st, _ = season_range(et+timedelta(days=1))
-                            self.start_date = st
+                    daily_create_date = metadata_list[0]['daily_history_create_date']
+                    if daily_create_date and daily_create_date >= self.default_date():
+                        _, et = season_range(daily_create_date)
+                        st, _ = season_range(et+timedelta(days=1))
+                        self.start_date = st
                 else:
                     db_mgr.stock_metadata.create_api(self._session, data_list=[{'stock_id': stock['id']}])
                 db_lock.release()
 
-                start_date, _ = season_range(self.start_date)
+                if self.start_date <= self.default_date():
+                    _, et = season_range(self.default_date())
+                    start_date, _ = season_range(et + timedelta(days=1))
+                else:
+                    start_date, _ = season_range(self.start_date)
+
                 for current_date in date_range(self.start_date, self.end_date):
                     # 判斷時間已做到最新的報表
                     year, season = date_to_year_season(current_date)
@@ -621,7 +623,6 @@ class CrawlerTask(threading.Thread):
                     metadata_list = db_mgr.stock_metadata.read_api(self._session, code=code)
                     if len(metadata_list) != 1:  # should never run here
                         raise Exception("metadata list is 0")
-
                     metadata_id = metadata_list[0]['id']
                     create_date = metadata_list[0]['income_create_date']
                     if not create_date:
