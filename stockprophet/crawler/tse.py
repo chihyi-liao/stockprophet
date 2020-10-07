@@ -88,7 +88,7 @@ def fetch_stock_category(dt: date, retry: int = 3) -> dict:
     for i, (_type, _category) in enumerate(TSE_CATEGORY, start=1):
         kwargs['params']['type'] = _type
         for n in range(retry):
-            req.wait_interval = random.randint(5, 10)
+            req.wait_interval = random.randint(10, 15)
             resp = req.send_data(method='GET', url=STOCK_URL, **kwargs)
             if resp.status_code == 200:
                 data = resp.json()
@@ -113,6 +113,7 @@ def fetch_stock_category(dt: date, retry: int = 3) -> dict:
                         result[_category] = _data
                         break
                 logger.info("取得 '%s'(%s) 資料", dt.strftime("%Y-%m-%d"), _category)
+                logger.info("200: %s", resp.text)
                 break
             else:
                 logger.warning("無法取得'%s'上市類股(%s)資料", dt.strftime("%Y-%m-%d"), _category)

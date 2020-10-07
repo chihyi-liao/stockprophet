@@ -26,7 +26,7 @@ def preprocessing() -> bool:
         init_stock_type()
         result = True
     except Exception:
-        print("無法建立資料庫")
+        print("無法連線資料庫")
     return result
 
 

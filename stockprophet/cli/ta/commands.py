@@ -6,6 +6,9 @@ from stockprophet.crawler.utils.date import get_latest_stock_date, get_latest_se
 from stockprophet.crawler.utils.common import get_stock_dates
 from stockprophet.db import get_session
 from stockprophet.db import manager as db_mgr
+from stockprophet.cli.common import (
+    show_result, calc_pbr, calc_gross_margin, calc_op_margin, calc_eps,
+)
 
 
 @click.group()
@@ -17,39 +20,6 @@ def ta_group():
 @ta_group.group('get')
 def get_group():
     pass
-
-
-def get_pbr(current_date, code) -> str:
-    special_common_stocks = {'4157': 0.001 * 30, '6548': 1.0, '8070': 1.0}
-    par_value = special_common_stocks.get(code, 10.0)
-    s = get_session()
-    history_list = db_mgr.stock_daily_history.read_api(
-        s, code, start_date=current_date, end_date=current_date, limit=1)
-    if len(history_list) != 1:
-        return ''
-
-    history = history_list[0]
-    if not history['co']:
-        return ''
-
-    season_date = get_latest_season_date(current_date)
-    balance_list = db_mgr.stock_balance_sheet.read_api(
-            s, code, start_date=season_date, end_date=season_date, limit=1)
-    if len(balance_list) == 1:
-        balance = balance_list[0]
-        shareholders_net_income = balance.get('shareholders_net_income')
-        common_stocks = balance.get('common_stocks')
-        if shareholders_net_income and common_stocks:
-            p = shareholders_net_income / (common_stocks/par_value)  # 每股淨值
-            pbr = round(history['co']/p, 2)  # 股價淨值比
-            return str(pbr)
-        total_assets = balance.get('total_assets')
-        total_liabs = balance.get('total_liabs')
-        if total_assets and total_liabs and common_stocks:
-            p = (total_assets - total_liabs) / (common_stocks/par_value)  # 每股淨值
-            pbr = round(history['co']/p, 2)  # 股價淨值比
-            return str(pbr)
-    return ''
 
 
 @get_group.command('macd')
@@ -86,7 +56,7 @@ def get_macd(n_day, type_s, use_weekly, use_monthly, fast, slow, dif):
     else:
         table = db_mgr.stock_daily_history
 
-    result = dict()
+    result = []
     for stock in stock_list:
         code = stock['code']
         name = stock['name']
@@ -95,23 +65,33 @@ def get_macd(n_day, type_s, use_weekly, use_monthly, fast, slow, dif):
             s, code=code, start_date=start_date, end_date=end_date, limit=0)
         values = []
         tmp = dict()
-        for i, v in enumerate(stock_data):
-            if not v['co']:
+        for i, val in enumerate(stock_data):
+            if not val['co']:
                 continue
 
             if i == len(stock_data) - 1:  # 取得最後的值
+                data = [code, name, val['co'], val['ch'], int(val['vol'] / 1000)]
+
+                balance_list = db_mgr.stock_balance_sheet.read_api(
+                    s, code, start_date=season_date, end_date=season_date, limit=1)
+
+                pbr = calc_pbr(code, val['co'], balance_list=balance_list)
+                data.append(pbr if pbr else '')
+
                 income_list = db_mgr.stock_income_statement.read_api(
                     s, code, start_date=season_date, end_date=season_date, limit=1)
 
-                if len(income_list) == 0:
-                    continue
+                eps = calc_eps(income_list=income_list)
+                data.append(eps if eps else '')
 
-                income = income_list[0]
-                eps = income.get('eps')
+                op_margin = calc_op_margin(income_list=income_list)
+                data.append(op_margin if op_margin else '')
 
-                pbr = get_pbr(end_date, code)
-                tmp[key] = [v['op'], v['hi'], v['lo'], v['co'], v['ch'], int(v['vol']/1000), pbr, eps]
-            values.append(v['co'])
+                gross_margin = calc_gross_margin(income_list=income_list)
+                data.append(gross_margin if gross_margin else '')
+
+                tmp[key] = data
+            values.append(val['co'])
 
         if not tmp.get(key):
             continue
@@ -125,20 +105,10 @@ def get_macd(n_day, type_s, use_weekly, use_monthly, fast, slow, dif):
 
         data = diff[-3:]
         if data[-3] < data[-2] < 0 < data[-1]:
-            result[key] = tmp[key]
+            result.append(tmp[key])
 
     # 顯示輸出
-    header = "{:<16}\t{:>4}\t{:>8}\t{:>8}\t{:>8}\t{:>8}\t{:>8}\t{:>8}\t{:>8}\t{:>8}".format(
-        "name(code)", chr(12288), "open", "high", "low", "close", "diff(%)", "volume", "pbr", "eps")
-    line = "{:<16}\t{:>4}\t{:>8}\t{:>8}\t{:>8}\t{:>8}\t{:>8}\t{:>8}\t{:>8}\t{:>8}".format(
-        "="*16, chr(12288), "="*8, "="*8, "="*8, "="*8, "="*8, "="*8, "="*8, "="*8)
-    click.echo(line)
-    click.echo(header)
-    click.echo(line)
-    for k, v in result.items():
-        msg = "{:<16}\t{:>4}\t{:>8}\t{:>8}\t{:>8}\t{:>8}\t{:>8}\t{:>8}\t{:>8}\t{:>8}".format(
-            k, chr(12288), v[0], v[1], v[2], v[3], str(v[4])+'%', v[5], v[6], v[7])
-        click.echo(msg)
+    show_result(result)
 
 
 @get_group.command('kdj')
@@ -172,7 +142,7 @@ def get_kdj(type_s, use_weekly, use_monthly, scalar):
     else:
         table = db_mgr.stock_daily_history
 
-    result = dict()
+    result = []
     for stock in stock_list:
         code = stock['code']
         name = stock['name']
@@ -187,25 +157,35 @@ def get_kdj(type_s, use_weekly, use_monthly, scalar):
             continue
 
         stock_data = stock_data
-        for i, v in enumerate(stock_data):
-            if not v['co']:
+        for i, val in enumerate(stock_data):
+            if not val['co']:
                 continue
 
-            high_values.append(v['hi'])
-            low_values.append(v['lo'])
-            close_values.append(v['co'])
+            high_values.append(val['hi'])
+            low_values.append(val['lo'])
+            close_values.append(val['co'])
             if i == len(stock_data) - 1:  # 取得最後的值
+                data = [code, name, val['co'], val['ch'], int(val['vol'] / 1000)]
+
+                balance_list = db_mgr.stock_balance_sheet.read_api(
+                    s, code, start_date=season_date, end_date=season_date, limit=1)
+
+                pbr = calc_pbr(code, val['co'], balance_list=balance_list)
+                data.append(pbr if pbr else '')
+
                 income_list = db_mgr.stock_income_statement.read_api(
                     s, code, start_date=season_date, end_date=season_date, limit=1)
 
-                if len(income_list) == 0:
-                    continue
+                eps = calc_eps(income_list=income_list)
+                data.append(eps if eps else '')
 
-                income = income_list[0]
-                eps = income.get('eps')
+                op_margin = calc_op_margin(income_list=income_list)
+                data.append(op_margin if op_margin else '')
 
-                pbr = get_pbr(end_date, code)
-                tmp[key] = [v['op'], v['hi'], v['lo'], v['co'], v['ch'], int(v['vol']/1000), pbr, eps]
+                gross_margin = calc_gross_margin(income_list=income_list)
+                data.append(gross_margin if gross_margin else '')
+
+                tmp[key] = data
                 break
 
         if not tmp.get(key):
@@ -220,17 +200,7 @@ def get_kdj(type_s, use_weekly, use_monthly, scalar):
 
         # 收集金叉
         if k_data[-1] - k_data[-2] > 0 and k_data[-1] - d_data[-2] > 0:
-            result[key] = tmp[key]
+            result.append(tmp[key])
 
     # 顯示輸出
-    header = "{:<16}\t{:>4}\t{:>8}\t{:>8}\t{:>8}\t{:>8}\t{:>8}\t{:>8}\t{:>8}\t{:>8}".format(
-        "name(code)", chr(12288), "open", "high", "low", "close", "diff(%)", "volume", "pbr", "eps")
-    line = "{:<16}\t{:>4}\t{:>8}\t{:>8}\t{:>8}\t{:>8}\t{:>8}\t{:>8}\t{:>8}\t{:>8}".format(
-        "="*16, chr(12288), "="*8, "="*8, "="*8, "="*8, "="*8, "="*8, "="*8, "="*8)
-    click.echo(line)
-    click.echo(header)
-    click.echo(line)
-    for k, v in result.items():
-        msg = "{:<16}\t{:>4}\t{:>8}\t{:>8}\t{:>8}\t{:>8}\t{:>8}\t{:>8}\t{:>8}\t{:>8}".format(
-            k, chr(12288), v[0], v[1], v[2], v[3], str(v[4])+'%', v[5], v[6], v[7])
-        click.echo(msg)
+    show_result(result)

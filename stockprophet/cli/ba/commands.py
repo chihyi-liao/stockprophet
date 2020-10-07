@@ -4,6 +4,10 @@ from stockprophet.crawler.utils.date import get_latest_stock_date, get_latest_se
 from stockprophet.crawler.utils.common import get_stock_dates
 from stockprophet.db import get_session
 from stockprophet.db import manager as db_mgr
+from stockprophet.cli.common import (
+    show_result, calc_pbr, calc_gross_margin, calc_op_margin, calc_eps,
+    is_asserts_asc, is_liabs_desc
+)
 
 
 @click.group()
@@ -19,7 +23,7 @@ def get_group():
 
 @get_group.command('pbr')
 @click.option('--type_s', '-t', help="指定股市為上市或上櫃", type=click.Choice(['tse', 'otc']))
-@click.option('--rate_more', '-m', default=0.0, type=float, help="股價淨值比大於設定值")
+@click.option('--rate_more', '-m', default=0.5, type=float, help="股價淨值比大於設定值")
 @click.option('--rate_less', '-l', default=1.0, type=float, help="股價淨值比小於設定值")
 def get_pbr(type_s, rate_more, rate_less):
     if rate_more > rate_less:
@@ -52,58 +56,31 @@ def get_pbr(type_s, rate_more, rate_less):
         balance_list = db_mgr.stock_balance_sheet.read_api(
             s, code, start_date=season_date, end_date=season_date, limit=1)
 
-        if len(balance_list) == 0:
-            continue
+        pbr = calc_pbr(code, val['co'], balance_list=balance_list)
+        if pbr:
+            data = [code, name, val['co'], val['ch'], int(val['vol'] / 1000)]
+            if pbr and rate_more < pbr < rate_less:
+                data.append(pbr)
+                income_list = db_mgr.stock_income_statement.read_api(
+                    s, code, start_date=season_date, end_date=season_date, limit=1)
 
-        balance = balance_list[0]
-        shareholders_net_income = balance.get('shareholders_net_income')
-        common_stocks = balance.get('common_stocks')
-        total_assets = balance.get('total_assets')
-        total_liabs = balance.get('total_liabs')
-        special_common_stocks = {'4157': 0.001 * 30, '6548': 1.0, '8070': 1.0}
-        par_value = special_common_stocks.get(code, 10.0)
-        if common_stocks:
-            if shareholders_net_income:
-                p = shareholders_net_income / (common_stocks / par_value)  # 每股淨值
-                pbr = round(val['co'] / p, 2)  # 股價淨值比
-            elif total_assets and total_liabs:
-                p = (total_assets - total_liabs) / (common_stocks / par_value)  # 每股淨值
-                pbr = round(val['co'] / p, 2)  # 股價淨值比
-            else:
-                pbr = None
+                eps = calc_eps(income_list=income_list)
+                data.append(eps if eps else '')
 
-            income_list = db_mgr.stock_income_statement.read_api(
-                s, code, start_date=season_date, end_date=season_date, limit=1)
+                op_margin = calc_op_margin(income_list=income_list)
+                data.append(op_margin if op_margin else '')
 
-            if len(income_list) == 0:
-                continue
-
-            income = income_list[0]
-            eps = income.get('eps')
-
-            if pbr is not None and rate_more < pbr < rate_less:
-                result.append([
-                    code, name, val['op'], val['hi'], val['lo'], val['co'],
-                    val['ch'], int(val['vol']/1000), pbr, eps])
+                gross_margin = calc_gross_margin(income_list=income_list)
+                data.append(gross_margin if gross_margin else '')
+                result.append(data)
 
     # 輸出顯示
-    header = "{:<16}\t{:>4}\t{:>8}\t{:>8}\t{:>8}\t{:>8}\t{:>8}\t{:>8}\t{:>8}\t{:>8}".format(
-        "name(code)", chr(12288), "open", "high", "low", "close", "diff(%)", "volume", "pbr", "eps")
-    line = "{:<16}\t{:>4}\t{:>8}\t{:>8}\t{:>8}\t{:>8}\t{:>8}\t{:>8}\t{:>8}\t{:>8}".format(
-        "="*16, chr(12288), "="*8, "="*8, "="*8, "="*8, "="*8, "="*8, "="*8, "="*8)
-    click.echo(line)
-    click.echo(header)
-    click.echo(line)
-    for v in result:
-        k = "%s(%s)" % (v[1], v[0])
-        msg = "{:<16}\t{:>4}\t{:>8}\t{:>8}\t{:>8}\t{:>8}\t{:>8}\t{:>8}\t{:>8}\t{:>8}".format(
-            k, chr(12288), v[2], v[3], v[4], v[5], str(v[6])+'%', v[7], v[8], v[9])
-        click.echo(msg)
+    show_result(result)
 
 
 @get_group.command('eps')
 @click.option('--type_s', '-t', help="指定股市為上市或上櫃", type=click.Choice(['tse', 'otc']))
-@click.option('--rate_more', '-m', default=0.0, type=float, help="eps大於設定值")
+@click.option('--rate_more', '-m', default=3.0, type=float, help="eps大於設定值")
 @click.option('--rate_less', '-l', default=10.0, type=float, help="eps小於設定值")
 def get_eps(type_s, rate_more, rate_less):
     if rate_more > rate_less:
@@ -126,6 +103,7 @@ def get_eps(type_s, rate_more, rate_less):
         name = stock['name']
         history_list = db_mgr.stock_daily_history.read_api(
             s, code, start_date=latest_date, end_date=latest_date, limit=1)
+
         if len(history_list) == 0:
             continue
 
@@ -133,55 +111,28 @@ def get_eps(type_s, rate_more, rate_less):
         if not val['co']:
             continue
 
-        balance_list = db_mgr.stock_balance_sheet.read_api(
-            s, code, start_date=season_date, end_date=season_date, limit=1)
-
-        if len(balance_list) == 0:
-            continue
-
-        balance = balance_list[0]
-        shareholders_net_income = balance.get('shareholders_net_income')
-        common_stocks = balance.get('common_stocks')
-        total_assets = balance.get('total_assets')
-        total_liabs = balance.get('total_liabs')
-        special_common_stocks = {'4157': 0.001 * 30, '6548': 1.0, '8070': 1.0}
-        par_value = special_common_stocks.get(code, 10.0)
-        if common_stocks:
-            if shareholders_net_income:
-                p = shareholders_net_income / (common_stocks / par_value)  # 每股淨值
-                pbr = round(val['co'] / p, 2)  # 股價淨值比
-            elif total_assets and total_liabs:
-                p = (total_assets - total_liabs) / (common_stocks / par_value)  # 每股淨值
-                pbr = round(val['co'] / p, 2)  # 股價淨值比
-            else:
-                pbr = None
-
         income_list = db_mgr.stock_income_statement.read_api(
             s, code, start_date=season_date, end_date=season_date, limit=1)
 
-        if len(income_list) == 0:
-            continue
-
-        income = income_list[0]
-        eps = income.get('eps')
+        eps = calc_eps(income_list=income_list)
         if eps and rate_more <= eps <= rate_less:
-            result.append([
-                code, name, val['op'], val['hi'], val['lo'], val['co'],
-                val['ch'], int(val['vol'] / 1000), pbr, eps])
+            data = [code, name, val['co'], val['ch'], int(val['vol'] / 1000)]
+            balance_list = db_mgr.stock_balance_sheet.read_api(
+                s, code, start_date=season_date, end_date=season_date, limit=1)
+
+            pbr = calc_pbr(code, val['co'], balance_list=balance_list)
+            data.append(pbr if pbr else '')
+            data.append(eps if eps else '')
+
+            op_margin = calc_op_margin(income_list=income_list)
+            data.append(op_margin if op_margin else '')
+
+            gross_margin = calc_gross_margin(income_list=income_list)
+            data.append(gross_margin if gross_margin else '')
+            result.append(data)
 
     # 輸出顯示
-    header = "{:<16}\t{:>4}\t{:>8}\t{:>8}\t{:>8}\t{:>8}\t{:>8}\t{:>8}\t{:>8}\t{:>8}".format(
-        "name(code)", chr(12288), "open", "high", "low", "close", "diff(%)", "volume", "pbr", "eps")
-    line = "{:<16}\t{:>4}\t{:>8}\t{:>8}\t{:>8}\t{:>8}\t{:>8}\t{:>8}\t{:>8}\t{:>8}".format(
-        "="*16, chr(12288), "="*8, "="*8, "="*8, "="*8, "="*8, "="*8, "="*8, "="*8)
-    click.echo(line)
-    click.echo(header)
-    click.echo(line)
-    for v in result:
-        k = "%s(%s)" % (v[1], v[0])
-        msg = "{:<16}\t{:>4}\t{:>8}\t{:>8}\t{:>8}\t{:>8}\t{:>8}\t{:>8}\t{:>8}\t{:>8}".format(
-            k, chr(12288), v[2], v[3], v[4], v[5], str(v[6])+'%', v[7], v[8], v[9])
-        click.echo(msg)
+    show_result(result)
 
 
 @get_group.command('balance')
@@ -203,118 +154,49 @@ def get_balance(type_s, liabs_count, asserts_count):
     for stock in stock_list:
         code = stock['code']
         name = stock['name']
-        collect = False
         if liabs_count:
             balance_list = db_mgr.stock_balance_sheet.read_api(
                 s, code=code, end_date=season_date, order_desc=True, limit=liabs_count)
-            if len(balance_list) != liabs_count:
+            if not is_liabs_desc(balance_list=balance_list, n=liabs_count):
                 continue
 
-            num = 0
-            # 找尋連 n 季 負債減少的股票
-            for balance in balance_list:
-                liabs = balance['total_liabs']
-                if not liabs:
-                    continue
-
-                if num == 0:
-                    num = liabs
-                else:
-                    if liabs < num:
-                        collect = False
-                        break
-                    else:
-                        num = liabs
-                        collect = True
-
-        if not collect:
-            continue
-
-        collect = False
         if asserts_count:
             balance_list = db_mgr.stock_balance_sheet.read_api(
                 s, code=code, end_date=season_date, order_desc=True, limit=asserts_count)
-            if len(balance_list) != asserts_count:
+            if not is_asserts_asc(balance_list=balance_list, n=asserts_count):
                 continue
 
-            num = 0
-            # 找尋連 n 季 資產增加的股票
-            for balance in balance_list:
-                asserts = balance['total_assets']
-                if not asserts:
-                    continue
+        history_list = db_mgr.stock_daily_history.read_api(
+            s, code=code, start_date=latest_date, end_date=latest_date, limit=1)
 
-                if num == 0:
-                    num = asserts
-                else:
-                    if asserts > num:
-                        collect = False
-                        break
-                    else:
-                        num = asserts
-                        collect = True
+        if len(history_list) == 0:
+            continue
 
-        if collect:
-            history_list = db_mgr.stock_daily_history.read_api(
-                s, code=code, start_date=latest_date, end_date=latest_date, limit=1)
+        val = history_list[0]
+        if not val['co']:
+            continue
 
-            if len(history_list) == 0:
-                continue
+        data = [code, name, val['co'], val['ch'], int(val['vol'] / 1000)]
 
-            val = history_list[0]
-            if not val['co']:
-                continue
+        balance_list = db_mgr.stock_balance_sheet.read_api(
+            s, code, start_date=season_date, end_date=season_date, limit=1)
+        pbr = calc_pbr(code, val['co'], balance_list=balance_list)
+        data.append(pbr if pbr else '')
 
-            balance_list = db_mgr.stock_balance_sheet.read_api(
-                s, code, start_date=season_date, end_date=season_date, limit=1)
+        income_list = db_mgr.stock_income_statement.read_api(
+            s, code, start_date=season_date, end_date=season_date, limit=1)
 
-            if len(balance_list) == 0:
-                continue
+        eps = calc_eps(income_list=income_list)
+        data.append(eps if eps else '')
 
-            balance = balance_list[0]
-            shareholders_net_income = balance.get('shareholders_net_income')
-            common_stocks = balance.get('common_stocks')
-            total_assets = balance.get('total_assets')
-            total_liabs = balance.get('total_liabs')
-            special_common_stocks = {'4157': 0.001 * 30, '6548': 1.0, '8070': 1.0}
-            par_value = special_common_stocks.get(code, 10.0)
-            if common_stocks:
-                if shareholders_net_income:
-                    p = shareholders_net_income / (common_stocks / par_value)  # 每股淨值
-                    pbr = round(val['co'] / p, 2)  # 股價淨值比
-                elif total_assets and total_liabs:
-                    p = (total_assets - total_liabs) / (common_stocks / par_value)  # 每股淨值
-                    pbr = round(val['co'] / p, 2)  # 股價淨值比
-                else:
-                    pbr = None
+        op_margin = calc_op_margin(income_list=income_list)
+        data.append(op_margin if op_margin else '')
 
-                income_list = db_mgr.stock_income_statement.read_api(
-                    s, code, start_date=season_date, end_date=season_date, limit=1)
-
-                if len(income_list) == 0:
-                    continue
-
-                income = income_list[0]
-                eps = income.get('eps')
-
-                result.append([
-                    code, name, val['op'], val['hi'], val['lo'], val['co'],
-                    val['ch'], int(val['vol']/1000), pbr, eps
-                ])
-
+        gross_margin = calc_gross_margin(income_list=income_list)
+        data.append(gross_margin if gross_margin else '')
+        result.append(data)
     # 輸出顯示
-    header = "{:<16}\t{:>4}\t{:>8}\t{:>8}\t{:>8}\t{:>8}\t{:>8}\t{:>8}\t{:>8}\t{:>8}".format(
-        "name(code)", chr(12288), "open", "high", "low", "close", "diff(%)", "volume", "pbr", "eps")
-    line = "{:<16}\t{:>4}\t{:>8}\t{:>8}\t{:>8}\t{:>8}\t{:>8}\t{:>8}\t{:>8}\t{:>8}".format(
-        "="*16, chr(12288), "="*8, "="*8, "="*8, "="*8, "="*8, "="*8, "="*8, "="*8)
-    click.echo(line)
-    click.echo(header)
-    click.echo(line)
-    for v in result:
-        k = "%s(%s)" % (v[1], v[0])
-        msg = "{:<16}\t{:>4}\t{:>8}\t{:>8}\t{:>8}\t{:>8}\t{:>8}\t{:>8}\t{:>8}\t{:>8}".format(
-            k, chr(12288), v[2], v[3], v[4], v[5], str(v[6])+'%', v[7], v[8], v[9])
-        click.echo(msg)
+    show_result(result)
 
 
 @get_group.command('op_margin')
@@ -349,56 +231,25 @@ def get_op_margin(type_s, rate_more, rate_less):
         if not val['co']:
             continue
 
+        data = [code, name, val['co'], val['ch'], int(val['vol'] / 1000)]
         balance_list = db_mgr.stock_balance_sheet.read_api(
             s, code, start_date=season_date, end_date=season_date, limit=1)
 
-        if len(balance_list) == 0:
-            continue
-
-        balance = balance_list[0]
-        shareholders_net_income = balance.get('shareholders_net_income')
-        common_stocks = balance.get('common_stocks')
-        total_assets = balance.get('total_assets')
-        total_liabs = balance.get('total_liabs')
-        special_common_stocks = {'4157': 0.001 * 30, '6548': 1.0, '8070': 1.0}
-        par_value = special_common_stocks.get(code, 10.0)
-        if common_stocks:
-            if shareholders_net_income:
-                p = shareholders_net_income / (common_stocks / par_value)  # 每股淨值
-                pbr = round(val['co'] / p, 2)  # 股價淨值比
-            elif total_assets and total_liabs:
-                p = (total_assets - total_liabs) / (common_stocks / par_value)  # 每股淨值
-                pbr = round(val['co'] / p, 2)  # 股價淨值比
-            else:
-                pbr = None
+        pbr = calc_pbr(code, val['co'], balance_list=balance_list)
+        data.append(pbr if pbr else '')
 
         income_list = db_mgr.stock_income_statement.read_api(
             s, code, start_date=season_date, end_date=season_date, limit=1)
 
-        if len(income_list) == 0:
-            continue
+        eps = calc_eps(income_list=income_list)
+        data.append(eps if eps else '')
 
-        income = income_list[0]
-        net_sales = income['net_sales']
-        op_income = income['operating_income']
-        eps = income.get('eps')
-        if net_sales and op_income:
-            op_margin = round((op_income / net_sales) * 100.0, 2)
-            if rate_more <= op_margin <= rate_less:
-                result.append([
-                    code, name, val['op'], val['hi'], val['lo'], val['co'],
-                    val['ch'], int(val['vol'] / 1000), pbr, eps, op_margin])
+        op_margin = calc_op_margin(income_list=income_list)
+        if op_margin and rate_more <= op_margin <= rate_less:
+            data.append(op_margin)
+            gross_margin = calc_gross_margin(income_list=income_list)
+            data.append(gross_margin if gross_margin else '')
+            result.append(data)
 
     # 輸出顯示
-    header = "{:<16}\t{:>4}\t{:>8}\t{:>8}\t{:>8}\t{:>8}\t{:>8}\t{:>8}\t{:>8}\t{:>8}\t{:>8}".format(
-        "name(code)", chr(12288), "open", "high", "low", "close", "diff(%)", "volume", "pbr", "eps", "op_margin" )
-    line = "{:<16}\t{:>4}\t{:>8}\t{:>8}\t{:>8}\t{:>8}\t{:>8}\t{:>8}\t{:>8}\t{:>8}\t{:>8}".format(
-        "="*16, chr(12288), "="*8, "="*8, "="*8, "="*8, "="*8, "="*8, "="*8, "="*8, "="*8)
-    click.echo(line)
-    click.echo(header)
-    click.echo(line)
-    for v in result:
-        k = "%s(%s)" % (v[1], v[0])
-        msg = "{:<16}\t{:>4}\t{:>8}\t{:>8}\t{:>8}\t{:>8}\t{:>8}\t{:>8}\t{:>8}\t{:>8}\t{:>8}".format(
-            k, chr(12288), v[2], v[3], v[4], v[5], str(v[6])+'%', v[7], v[8], v[9], v[10])
-        click.echo(msg)
+    show_result(result)
