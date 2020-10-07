@@ -302,6 +302,8 @@ def patch_balance_sheet_table(s: Session, type_s: str, code: str, start_date: da
         # 金融股要特殊參數
         if bank_id is not None and stock['stock_category_id'] == bank_id:
             data = fetch_balance_sheet(type_s, code, year, season, '2')
+        elif code in ['2841']:
+            data = fetch_balance_sheet(type_s, code, year, season, '2')
         else:
             data = fetch_balance_sheet(type_s, code, year, season)
         if data:
@@ -396,6 +398,8 @@ def patch_income_statement_table(s: Session, type_s: str, code: str, start_date:
 
         # 金融股要特殊參數
         if bank_id is not None and stock['stock_category_id'] == bank_id:
+            data = fetch_income_statement(type_s, code, year, season, '2')
+        elif code in ['2841']:
             data = fetch_income_statement(type_s, code, year, season, '2')
         else:
             data = fetch_income_statement(type_s, code, year, season)
@@ -551,6 +555,8 @@ class CrawlerTask(threading.Thread):
                     # 金融股要特殊參數
                     if bank_id is not None and stock['stock_category_id'] == bank_id:
                         data = fetch_balance_sheet(type_s, code, year, season, '2')
+                    elif code in ['2841']:
+                        data = fetch_balance_sheet(type_s, code, year, season, '2')
                     else:
                         data = fetch_balance_sheet(type_s, code, year, season)
 
@@ -666,6 +672,8 @@ class CrawlerTask(threading.Thread):
 
                     # 金融股要特殊參數
                     if bank_id is not None and stock['stock_category_id'] == bank_id:
+                        data = fetch_income_statement(type_s, code, year, season, '2')
+                    elif code in ['2841']:
                         data = fetch_income_statement(type_s, code, year, season, '2')
                     else:
                         data = fetch_income_statement(type_s, code, year, season)
