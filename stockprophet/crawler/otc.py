@@ -359,12 +359,17 @@ class CrawlerTask(threading.Thread):
 
         if self._build_period_table:
             if len(metadata_list) == 1:
-                self.start_date = metadata_list[0]['weekly_history_update_date']
+                weekly_history_update_date = metadata_list[0]['weekly_history_update_date']
+                if weekly_history_update_date:
+                    self.start_date = weekly_history_update_date
             self.build_weekly_history_table()
 
             if len(metadata_list) == 1:
-                self.start_date = metadata_list[0]['monthly_history_update_date']
+                monthly_history_update_date = metadata_list[0]['monthly_history_update_date']
+                if monthly_history_update_date:
+                    self.start_date = monthly_history_update_date
             self.build_monthly_history_table()
+
             self.update_metadata_table()
             self._session.close()
             logger.info("Finish OTC thread")
