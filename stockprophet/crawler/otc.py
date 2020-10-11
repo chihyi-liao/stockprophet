@@ -28,7 +28,7 @@ STOCK_URL = "https://www.tpex.org.tw/web/stock/aftertrading/otc_quotes_no1430/st
 logger = get_logger(__name__)
 
 
-def fetch_stock_history(dt: date, retry: int = 3) -> list:
+def fetch_stock_history(dt: date, retry: int = 20) -> list:
     """
     依據日期的抓取該日所有股市交易行情
     輸出格式: [('1240', '茂生農經', '48,000', '', '2,609,300', '54.60', '55.30', '54.00', '55.30', '+', '0.5'), (...)]
@@ -74,7 +74,7 @@ def fetch_stock_history(dt: date, retry: int = 3) -> list:
     return result
 
 
-def fetch_stock_category(dt: date, retry: int = 3) -> dict:
+def fetch_stock_category(dt: date, retry: int = 20) -> dict:
     """
     依據日期抓取所有類股資料
     輸出格式: {'食品工業': [('1258', '其祥-KY'), ('1264', '德麥'), ('1796', '金穎生技'),
@@ -370,23 +370,9 @@ class CrawlerTask(threading.Thread):
             logger.info("Finish OTC thread")
             return
         else:
-            is_failed_stock = True
-            for retry in range(3):
-                if len(metadata_list) == 1:
-                    self.start_date = metadata_list[0]['daily_history_update_date']
-
-                if self.start_date == self.latest_date():
-                    is_failed_stock = False
-                    break
-                else:
-                    if self.build_stock_table() is True:
-                        self.build_stock_daily_history_table()
-                        self.update_metadata_table()
-                        is_failed_stock = False
-                        break
-
-            if is_failed_stock:
-                logger.warning("無法取得完整的 stock 資料, 請稍後重新執行爬蟲")
+            if self.build_stock_table() is True:
+                self.build_stock_daily_history_table()
+                self.update_metadata_table()
 
             if len(self._loss_fetch) != 0:
                 logger.warning("缺少 %s 的日期資料, 請重新執行爬蟲", self._loss_fetch)
