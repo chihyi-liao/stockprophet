@@ -69,6 +69,48 @@ def show_result(result: list):
         click.echo(msg)
 
 
+def show_simulate_result(result: list):
+    n_size = 16
+    s_size = 12
+    line = "{0}\t{1}\t{2}\t{3}\t{4}\t{5}\t{6}\t{7}\t{8}\t{9}".format(
+        my_align('=' * s_size, s_size, 'R'), my_align('=' * s_size, s_size, 'R'),
+        my_align('=' * s_size, s_size, 'R'), my_align('=' * s_size, s_size, 'R'),
+        my_align('=' * s_size, s_size, 'R'), my_align('=' * s_size, s_size, 'R'),
+        my_align('=' * s_size, s_size, 'R'), my_align('=' * n_size, n_size, 'R'),
+        my_align('=' * s_size, s_size, 'R'), my_align('=' * s_size, s_size, 'R'))
+
+    header = "{date}\t{buy_price}\t{buy_vol}\t{sell_price}\t{sell_vol}\t" \
+             "{avg_price}\t{volume}\t{stock_asserts}\t{total_asserts}\t{roi}".format(
+                date=my_align("日期", s_size, 'R'),
+                buy_price=my_align("買入價", s_size, 'R'),
+                buy_vol=my_align("買入量", s_size, 'R'),
+                sell_price=my_align("賣出價", s_size, 'R'),
+                sell_vol=my_align("賣出量", s_size, 'R'),
+                avg_price=my_align("平均價", s_size, 'R'),
+                volume=my_align("總量(張)", s_size, 'R'),
+                stock_asserts=my_align("股票資產", n_size, 'R'),
+                total_asserts=my_align("總資產", s_size, 'R'),
+                roi=my_align("ROI(%)", s_size, 'R'))
+
+    click.echo(line)
+    click.echo(header)
+    click.echo(line)
+    for v in result:
+        msg = "{date}\t{buy_price}\t{buy_vol}\t{sell_price}\t{sell_vol}\t" \
+              "{avg_price}\t{volume}\t{stock_asserts}\t{total_asserts}\t{roi}".format(
+                date=my_align(v[0], s_size, 'R'),
+                buy_price=my_align(str(v[1]), s_size, 'R'),
+                buy_vol=my_align(str(v[2]), s_size, 'R'),
+                sell_price=my_align(str(v[3]), s_size, 'R'),
+                sell_vol=my_align(str(v[4]), s_size, 'R'),
+                avg_price=my_align(str(v[5]), s_size, 'R'),
+                volume=my_align(str(v[6]), s_size, 'R'),
+                stock_asserts=my_align(str(v[7]), n_size, 'R'),
+                total_asserts=my_align(str(v[8]), s_size, 'R'),
+                roi=my_align(str(v[9])+'%' if v[9] else '', s_size, 'R'))
+        click.echo(msg)
+
+
 def calc_pbr(code: str, price: float, balance_list: list) -> [None, float]:
     """根據收盤價與資產負債表計算股價淨值比"""
     result = None
