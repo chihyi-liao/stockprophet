@@ -72,24 +72,26 @@ def show_result(result: list):
 def show_simulate_result(result: list):
     n_size = 16
     s_size = 12
-    line = "{0}\t{1}\t{2}\t{3}\t{4}\t{5}\t{6}\t{7}\t{8}\t{9}".format(
+    line = "{0}\t{1}\t{2}\t{3}\t{4}\t{5}\t{6}\t{7}\t{8}\t{9}\t{10}".format(
         my_align('=' * s_size, s_size, 'R'), my_align('=' * s_size, s_size, 'R'),
         my_align('=' * s_size, s_size, 'R'), my_align('=' * s_size, s_size, 'R'),
         my_align('=' * s_size, s_size, 'R'), my_align('=' * s_size, s_size, 'R'),
         my_align('=' * s_size, s_size, 'R'), my_align('=' * n_size, n_size, 'R'),
-        my_align('=' * s_size, s_size, 'R'), my_align('=' * s_size, s_size, 'R'))
+        my_align('=' * s_size, s_size, 'R'), my_align('=' * s_size, s_size, 'R'),
+        my_align('=' * s_size, s_size, 'R'))
 
     header = "{date}\t{buy_price}\t{buy_vol}\t{sell_price}\t{sell_vol}\t" \
-             "{avg_price}\t{volume}\t{stock_asserts}\t{total_asserts}\t{roi}".format(
+             "{avg_price}\t{volume}\t{stock_cost}\t{principal}\t{total_cost}\t{roi}".format(
                 date=my_align("日期", s_size, 'R'),
-                buy_price=my_align("買入價", s_size, 'R'),
-                buy_vol=my_align("買入量", s_size, 'R'),
-                sell_price=my_align("賣出價", s_size, 'R'),
-                sell_vol=my_align("賣出量", s_size, 'R'),
+                buy_price=my_align("買價", s_size, 'R'),
+                buy_vol=my_align("買量", s_size, 'R'),
+                sell_price=my_align("賣價", s_size, 'R'),
+                sell_vol=my_align("賣量", s_size, 'R'),
                 avg_price=my_align("平均價", s_size, 'R'),
-                volume=my_align("總量(張)", s_size, 'R'),
-                stock_asserts=my_align("股票資產", n_size, 'R'),
-                total_asserts=my_align("總資產", s_size, 'R'),
+                volume=my_align("總量", s_size, 'R'),
+                stock_cost=my_align("股票資產", n_size, 'R'),
+                principal=my_align("本金", s_size, 'R'),
+                total_cost=my_align("總資產", s_size, 'R'),
                 roi=my_align("ROI(%)", s_size, 'R'))
 
     click.echo(line)
@@ -97,17 +99,18 @@ def show_simulate_result(result: list):
     click.echo(line)
     for v in result:
         msg = "{date}\t{buy_price}\t{buy_vol}\t{sell_price}\t{sell_vol}\t" \
-              "{avg_price}\t{volume}\t{stock_asserts}\t{total_asserts}\t{roi}".format(
+              "{avg_price}\t{volume}\t{stock_cost}\t{principal}\t{total_cost}\t{roi}".format(
                 date=my_align(v[0], s_size, 'R'),
-                buy_price=my_align(str(v[1]), s_size, 'R'),
-                buy_vol=my_align(str(v[2]), s_size, 'R'),
-                sell_price=my_align(str(v[3]), s_size, 'R'),
-                sell_vol=my_align(str(v[4]), s_size, 'R'),
-                avg_price=my_align(str(v[5]), s_size, 'R'),
-                volume=my_align(str(v[6]), s_size, 'R'),
-                stock_asserts=my_align(str(v[7]), n_size, 'R'),
-                total_asserts=my_align(str(v[8]), s_size, 'R'),
-                roi=my_align(str(v[9])+'%' if v[9] else '', s_size, 'R'))
+                buy_price=my_align(str(v[1]) if v[1] else '-', s_size, 'R'),
+                buy_vol=my_align(str(v[2]) if v[2] else '-', s_size, 'R'),
+                sell_price=my_align(str(v[3]) if v[3] else '-', s_size, 'R'),
+                sell_vol=my_align(str(v[4]) if v[4] else '-', s_size, 'R'),
+                avg_price=my_align(str(v[5]) if v[5] else '-', s_size, 'R'),
+                volume=my_align(str(v[6]) if v[6] else '-', s_size, 'R'),
+                stock_cost=my_align(str(v[7]) if v[7] else '-', n_size, 'R'),
+                principal=my_align(str(v[8]) if v[8] else '-', s_size, 'R'),
+                total_cost=my_align(str(v[9]) if v[9] else '-', s_size, 'R'),
+                roi=my_align(str(v[10])+'%', s_size, 'R'))
         click.echo(msg)
 
 
