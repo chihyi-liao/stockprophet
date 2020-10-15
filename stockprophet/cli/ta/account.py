@@ -41,7 +41,7 @@ class Account(object):
             self.principal -= (stock_cost + stock_fee)
             self.total_volume += volume
             self.avg_price = self.get_buy_avg_price(price, volume)
-            self.total_assets = self.principal + self.stock_assets
+            self.total_assets = int(self.principal + self.stock_assets)
             self.records.append([
                 dt.strftime("%Y-%m-%d"), round(price, 2), round(volume, 2),
                 None, None, self.avg_price, self.total_volume, int(self.stock_assets),
@@ -72,7 +72,7 @@ class Account(object):
             if self.total_volume == 0:
                 avg_price = 0.0
                 self.clear()
-            self.total_assets = self.principal + self.stock_assets
+            self.total_assets = int(self.principal + self.stock_assets)
 
             self.records.append([
                 dt.strftime("%Y-%m-%d"), None, None,
