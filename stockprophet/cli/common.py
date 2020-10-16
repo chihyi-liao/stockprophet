@@ -56,6 +56,9 @@ def show_result(result: list):
     click.echo(header)
     click.echo(line)
     for v in result:
+        if len(v) == 0:
+            continue
+
         k = "%s(%s)" % (v[1], v[0])
         msg = "{name}\t{price}\t{diff}\t{vol}\t{pbr}\t{eps}\t{op_margin}\t{gross_margin}".format(
             name=my_align(k, b_size, 'R'),
@@ -81,7 +84,7 @@ def show_simulate_result(result: list):
         my_align('=' * s_size, s_size, 'R'))
 
     header = "{date}\t{buy_price}\t{buy_vol}\t{sell_price}\t{sell_vol}\t" \
-             "{avg_price}\t{volume}\t{stock_cost}\t{principal}\t{total_cost}\t{roi}".format(
+             "{avg_price}\t{volume}\t{stock_assets}\t{principal}\t{total_assets}\t{roi}".format(
                 date=my_align("日期", s_size, 'R'),
                 buy_price=my_align("買價", s_size, 'R'),
                 buy_vol=my_align("買量", s_size, 'R'),
@@ -89,17 +92,20 @@ def show_simulate_result(result: list):
                 sell_vol=my_align("賣量", s_size, 'R'),
                 avg_price=my_align("平均價", s_size, 'R'),
                 volume=my_align("總量", s_size, 'R'),
-                stock_cost=my_align("股票資產", n_size, 'R'),
+                stock_assets=my_align("股票資產", n_size, 'R'),
                 principal=my_align("本金", s_size, 'R'),
-                total_cost=my_align("總資產", s_size, 'R'),
+                total_assets=my_align("總資產", s_size, 'R'),
                 roi=my_align("ROI(%)", s_size, 'R'))
 
     click.echo(line)
     click.echo(header)
     click.echo(line)
     for v in result:
+        if len(v) == 0:
+            continue
+
         msg = "{date}\t{buy_price}\t{buy_vol}\t{sell_price}\t{sell_vol}\t" \
-              "{avg_price}\t{volume}\t{stock_cost}\t{principal}\t{total_cost}\t{roi}".format(
+              "{avg_price}\t{volume}\t{stock_assets}\t{principal}\t{total_assets}\t{roi}".format(
                 date=my_align(v[0], s_size, 'R'),
                 buy_price=my_align(str(v[1]) if v[1] else '-', s_size, 'R'),
                 buy_vol=my_align(str(v[2]) if v[2] else '-', s_size, 'R'),
@@ -107,10 +113,43 @@ def show_simulate_result(result: list):
                 sell_vol=my_align(str(v[4]) if v[4] else '-', s_size, 'R'),
                 avg_price=my_align(str(v[5]) if v[5] else '-', s_size, 'R'),
                 volume=my_align(str(v[6]) if v[6] else '-', s_size, 'R'),
-                stock_cost=my_align(str(v[7]) if v[7] else '-', n_size, 'R'),
+                stock_assets=my_align(str(v[7]) if v[7] else '-', n_size, 'R'),
                 principal=my_align(str(v[8]) if v[8] else '-', s_size, 'R'),
-                total_cost=my_align(str(v[9]) if v[9] else '-', s_size, 'R'),
+                total_assets=my_align(str(v[9]) if v[9] else '-', s_size, 'R'),
                 roi=my_align(str(v[10])+'%', s_size, 'R'))
+        click.echo(msg)
+
+
+def show_simulate_top_result(result: list):
+    b_size = 24
+    s_size = 12
+    line = "{0}\t{1}\t{2}\t{3}\t{4}\t{5}".format(
+        my_align('=' * s_size, s_size, 'R'), my_align('=' * b_size, b_size, 'R'),
+        my_align('=' * s_size, s_size, 'R'), my_align('=' * s_size, s_size, 'R'),
+        my_align('=' * s_size, s_size, 'R'), my_align('=' * s_size, s_size, 'R'))
+
+    header = "{no}\t{name}\t{price}\t{principal}\t{total_assets}\t{diff}".format(
+        no=my_align("No.", s_size, 'R'),
+        name=my_align("名稱(代號)", b_size, 'R'),
+        price=my_align("股價", s_size, 'R'),
+        principal=my_align("本金", s_size, 'R'),
+        total_assets=my_align("總資產", s_size, 'R'),
+        diff=my_align("漲幅(%)", s_size, 'R'))
+
+    click.echo(line)
+    click.echo(header)
+    click.echo(line)
+    for v in result:
+        if len(v) == 0:
+            continue
+
+        msg = "{no}\t{name}\t{price}\t{principal}\t{total_assets}\t{diff}".format(
+            no=my_align(str(v[0]), s_size, 'R'),
+            name=my_align(str(v[1]), b_size, 'R'),
+            price=my_align(str(v[2]), s_size, 'R'),
+            principal=my_align(str(v[3]), s_size, 'R'),
+            total_assets=my_align(str(v[4]), s_size, 'R'),
+            diff=my_align(str(v[5])+'%', s_size, 'R'))
         click.echo(msg)
 
 
