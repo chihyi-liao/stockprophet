@@ -21,11 +21,13 @@ def sim_group():
 @click.option('--fast', '-f', default=12, show_default=True, type=int, help='macd 快線參數')
 @click.option('--slow', '-s', default=26, show_default=True, type=int, help='macd 慢線參數')
 @click.option('--dif', '-d', default=9, show_default=True, type=int, help='macd 差離值參數')
+@click.option('--roi_limit', '-r', default=-15.0, show_default=True, type=float, help='roi虧損參數')
 def get_macd(code, principal, init_vol, start_date, end_date, n_day,
-             use_weekly, use_monthly, fast, slow, dif):
+             use_weekly, use_monthly, fast, slow, dif, roi_limit):
     data = do_macd(
         code=code, principal=principal, init_vol=init_vol, start_date=start_date.date(), end_date=end_date.date(),
-        n_day=n_day, use_weekly=use_weekly, use_monthly=use_monthly, fast=fast, slow=slow, dif=dif, progress=True)
+        n_day=n_day, use_weekly=use_weekly, use_monthly=use_monthly, fast=fast, slow=slow, dif=dif,
+        roi_limit=roi_limit, progress=True)
 
     # 顯示模擬結果
     if len(data) > 0:
@@ -43,14 +45,15 @@ def get_macd(code, principal, init_vol, start_date, end_date, n_day,
 @click.option('--fast', '-f', default=12, show_default=True, type=int, help='macd 快線參數')
 @click.option('--slow', '-s', default=26, show_default=True, type=int, help='macd 慢線參數')
 @click.option('--dif', '-d', default=9, show_default=True, type=int, help='macd 差離值參數')
-@click.option('--limit_price', '-l', default=25, type=int, help='股價低於設定值')
 @click.option('--top_size', '-t', default=20, type=int, help='設定top大小')
+@click.option('--limit_price', '-l', default=25, type=int, help='股價低於設定值')
+@click.option('--roi_limit', '-r', default=-10.0, show_default=True, type=float, help='roi虧損參數')
 def get_all_macd(principal, init_vol, start_date, end_date, n_day,
-                 use_weekly, use_monthly, fast, slow, dif, top_size, limit_price):
+                 use_weekly, use_monthly, fast, slow, dif, top_size, limit_price, roi_limit):
     data = do_all_macd(
         principal=principal, init_vol=init_vol, start_date=start_date.date(), end_date=end_date.date(),
         n_day=n_day, use_weekly=use_weekly, use_monthly=use_monthly, fast=fast, slow=slow, dif=dif,
-        top_size=top_size, limit_price=limit_price, progress=True)
+        top_size=top_size, limit_price=limit_price, roi_limit=roi_limit, progress=True)
 
     # 顯示模擬結果
     if len(data) > 0:

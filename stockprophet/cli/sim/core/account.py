@@ -48,7 +48,7 @@ class Account(object):
                 int(self.principal), int(self.total_assets), self.get_roi(price)])
 
     def get_max_buy_volume(self, price: float):
-        volume = int(self.principal / price * Kilo)
+        volume = int(self.principal / (price * Kilo))
         cost = price * volume * Kilo + int(price * volume * Kilo * Fee)
         if cost > self.principal:
             volume = volume - 1

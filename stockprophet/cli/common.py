@@ -1,3 +1,7 @@
+import math
+import sys
+from datetime import date
+
 import click
 
 
@@ -217,51 +221,14 @@ def calc_eps(income_list: list) -> [None, float]:
     return result
 
 
-def is_liabs_desc(balance_list: list, n: int) -> bool:
-    """連續 n 季負債減少"""
-    result = False
-    if len(balance_list) != n:
-        return result
-
-    value = 0
-    for balance in balance_list:
-        liabs = balance['total_liabs']
-        if not liabs:
-            continue
-
-        if value == 0:
-            value = liabs
-        else:
-            if liabs < value:
-                result = False
-                break
-            else:
-                value = liabs
-                result = True
-
-    return result
+def progressbar(cur: int, total: int):
+    percent = (cur / total) * 100
+    sys.stdout.write('\r')
+    sys.stdout.write("[%-50s] %.1f" % ('=' * int(math.floor(cur * 50 / total)), percent))
+    if percent >= 100.0:
+        sys.stdout.write('\r')
+    sys.stdout.flush()
 
 
-def is_asserts_asc(balance_list: list, n: int) -> bool:
-    """連續 n 季資產增加"""
-    result = False
-    if len(balance_list) != n:
-        return result
-
-    value = 0
-    for balance in balance_list:
-        asserts = balance['total_assets']
-        if not asserts:
-            continue
-
-        if value == 0:
-            value = asserts
-        else:
-            if asserts > value:
-                result = False
-                break
-            else:
-                value = asserts
-                result = True
-
-    return result
+def date_to_integer(dt: date):
+    return 10000 * dt.year + 100 * dt.month + dt.day

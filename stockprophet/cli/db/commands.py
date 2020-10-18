@@ -16,8 +16,8 @@ def get_group():
 
 @get_group.command('config')
 def get_config():
-    header = "{:<16}\t{:>20}".format("name", "value")
-    line = "{:<16}\t{:>20}".format("=" * 16, "=" * 20)
+    header = "{:>24}\t{:>24}".format("name", "value")
+    line = "{:>24}\t{:>24}".format("=" * 24, "=" * 24)
     click.echo(line)
     click.echo(header)
     click.echo(line)
@@ -26,7 +26,7 @@ def get_config():
             continue
         if k == 'password':
             v = len(k) * '*'
-        click.echo("{:<16}\t{:>20}".format(k, v))
+        click.echo("{:>24}\t{:>24}".format(k, v))
 
 
 # --- set --- #
