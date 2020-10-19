@@ -119,7 +119,7 @@ def do_macd(code: str, principal: int, init_vol: int, start_date: date, end_date
         if check_macd_sell_point(macd=macd, signal=signal, diff=diff) is True:
             total_volume = my_account.get_total_volume()
             avg_price = my_account.get_avg_price()
-            if total_volume: # 確認是否有總量
+            if total_volume:  # 確認是否有總量
                 if price >= avg_price:  # 獲利情況
                     tmp_vol = init_vol
                     sell_vol = total_volume
@@ -144,12 +144,8 @@ def do_macd(code: str, principal: int, init_vol: int, start_date: date, end_date
 def do_all_macd(principal: int, init_vol: int, start_date: date, end_date: date, n_day: int,
                 use_weekly: bool, use_monthly: bool, fast: int, slow: int, dif: int,
                 top_size: int, limit_price: float, roi_limit: float, progress: bool = False) -> list:
-    # 設定初始變數
-    result = [[] for _ in range(top_size)]
-    top_list = [None for _ in range(top_size)]
-    count = 0
+    result = []
     s = get_session()
-
     # 取得所有的股市資料
     stock_list = db_mgr.stock.readall_api(s, is_alive=True)
     total = len(stock_list)
@@ -179,33 +175,28 @@ def do_all_macd(principal: int, init_vol: int, start_date: date, end_date: date,
         if len(macd_data_list) == 0:
             continue
 
-        total_assets = macd_data_list[-1][9]  # 取得總資產
-        # 若總資產比top list最小的值大, 則取代最小的位置
+        # 取得總資產
+        total_assets = macd_data_list[-1][9]
+
+        # 若總資產比top list最小的值大, 則排序之後取切片
         if total_assets > principal:
             stock_name = "%s(%s)" % (name, code)
-            if count < top_size:
-                for i in range(len(top_list)):
-                    if top_list[i] is None:
-                        top_list[i] = total_assets
-                        diff = round((total_assets-principal) * 100 / principal, 2)
-                        result[i] = [i+1, stock_name, price, principal, total_assets, diff]
-                        count += 1
-                        break
+            if len(result) < top_size:
+                diff = round((total_assets-principal) * 100 / principal, 2)
+                result.append([None, stock_name, price, principal, total_assets, diff])
+                result.sort(key=lambda r: r[4])
             else:
-                min_val = None
-                min_idx = None
-                for i in range(len(top_list)):
-                    if min_val is None:
-                        min_val = top_list[i]
-                        min_idx = i
-                    else:
-                        if top_list[i] < min_val:
-                            min_val = top_list[i]
-                            min_idx = i
+                for item in result:
+                    if total_assets > item[4]:
+                        diff = round((total_assets - principal) * 100 / principal, 2)
+                        data = [None, stock_name, price, principal, total_assets, diff]
+                        result.append(data)
+                        result.sort(key=lambda r: r[4])
+                        result = result[-top_size:]
+                    break
 
-                if total_assets > min_val:
-                    top_list[min_idx] = total_assets
-                    diff = round((total_assets - principal) * 100 / principal, 2)
-                    result[min_idx] = [min_idx + 1, stock_name, price, principal, total_assets, diff]
+    # 打上排序編號
+    for i, item in enumerate(result):
+        item[0] = i+1
 
     return result

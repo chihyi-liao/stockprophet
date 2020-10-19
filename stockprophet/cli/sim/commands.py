@@ -21,7 +21,7 @@ def sim_group():
 @click.option('--fast', '-f', default=12, show_default=True, type=int, help='macd 快線參數')
 @click.option('--slow', '-s', default=26, show_default=True, type=int, help='macd 慢線參數')
 @click.option('--dif', '-d', default=9, show_default=True, type=int, help='macd 差離值參數')
-@click.option('--roi_limit', '-r', default=-15.0, show_default=True, type=float, help='roi虧損參數')
+@click.option('--roi_limit', '-r', default=-10.0, show_default=True, type=float, help='roi虧損參數')
 def get_macd(code, principal, init_vol, start_date, end_date, n_day,
              use_weekly, use_monthly, fast, slow, dif, roi_limit):
     data = do_macd(
