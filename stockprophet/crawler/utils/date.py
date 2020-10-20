@@ -42,9 +42,10 @@ def season_range(date: datetime.date):
         month = date.month
         if month in [1, 2, 3]:
             start_date = datetime.date(year-1, 12, 1)
+            end_date = datetime.date(year, 4, 1) - datetime.timedelta(days=1)
         else:
             start_date = datetime.date(year, 12, 1)
-        end_date = datetime.date(year, 4, 1) - datetime.timedelta(days=1)
+            end_date = datetime.date(year+1, 4, 1) - datetime.timedelta(days=1)
     return start_date, end_date
 
 

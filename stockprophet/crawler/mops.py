@@ -306,6 +306,7 @@ def patch_balance_sheet_table(s: Session, type_s: str, code: str, start_date: da
             data = fetch_balance_sheet(type_s, code, year, season, '2')
         else:
             data = fetch_balance_sheet(type_s, code, year, season)
+
         if data:
             data['stock_id'] = stock['id']
             data['stock_date_id'] = stock_date_id
@@ -403,6 +404,7 @@ def patch_income_statement_table(s: Session, type_s: str, code: str, start_date:
             data = fetch_income_statement(type_s, code, year, season, '2')
         else:
             data = fetch_income_statement(type_s, code, year, season)
+
         if data:
             data['stock_id'] = stock['id']
             data['stock_date_id'] = stock_date_id
