@@ -29,6 +29,8 @@ def rsv(high_values, low_values, close_values, n=9):
             continue
         n_low = min(low_values[i - n:i])
         n_high = max(high_values[i - n:i])
+        if n_high - n_low == 0:
+            continue
         result += [100. * (value - n_low) / (n_high - n_low)]
     return result
 

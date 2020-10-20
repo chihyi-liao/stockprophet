@@ -1,5 +1,4 @@
 from datetime import timedelta
-import click
 
 from stockprophet.cli.common import progressbar
 from stockprophet.cli.ta.core import compute
@@ -58,7 +57,6 @@ def do_get_macd(n_day: int, type_s: str, use_weekly: bool, use_monthly: bool,
         return result
 
     if use_weekly and use_monthly:
-        click.echo("無法同時指定兩個歷史資料表")
         return result
 
     if use_weekly:
@@ -79,11 +77,7 @@ def do_get_macd(n_day: int, type_s: str, use_weekly: bool, use_monthly: bool,
         code = stock['code']
         name = stock['name']
         key = "%s(%s)" % (name, code)
-        try:
-            stock_data = table.read_api(
-                s, code=code, start_date=start_date, end_date=end_date, limit=0)
-        except:
-            raise
+        stock_data = table.read_api(s, code=code, start_date=start_date, end_date=end_date, limit=0)
         values = []
         tmp = dict()
         for i, val in enumerate(stock_data):

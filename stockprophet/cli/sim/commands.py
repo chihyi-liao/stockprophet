@@ -2,6 +2,7 @@ import click
 
 from stockprophet.cli.common import show_simulate_result, show_simulate_top_result
 from .core.macd import do_macd, do_all_macd
+from .core.kdj import do_kdj, do_all_kdj
 
 
 @click.group()
@@ -53,6 +54,52 @@ def get_all_macd(principal, init_vol, start_date, end_date, n_day,
     data = do_all_macd(
         principal=principal, init_vol=init_vol, start_date=start_date.date(), end_date=end_date.date(),
         n_day=n_day, use_weekly=use_weekly, use_monthly=use_monthly, fast=fast, slow=slow, dif=dif,
+        top_size=top_size, limit_price=limit_price, roi_limit=roi_limit, progress=True)
+
+    # 顯示模擬結果
+    if len(data) > 0:
+        show_simulate_top_result(result=data)
+
+
+@sim_group.command('kdj')
+@click.option('--code', '-c', help="指定股票代號", type=str, required=True)
+@click.option('--principal', '-p', help="模擬本金", default=50*10000, type=int, required=True)
+@click.option('--init_vol', '-v', help="初始買量", default=2, type=int, required=True)
+@click.option('--start_date', '-sd', help="設定模擬開始日期", type=click.DateTime(formats=["%Y-%m-%d"]), required=True)
+@click.option('--end_date', '-ed', help="設定模擬結束日期", type=click.DateTime(formats=["%Y-%m-%d"]), required=True)
+@click.option('--n_day', '-n', default=9, show_default=True, type=click.IntRange(3, 12), help="資料表計算天數")
+@click.option('--use_weekly', is_flag=True, help='使用每週歷史資料表來計算')
+@click.option('--use_monthly', is_flag=True, help='使用每月歷史資料表來計算')
+@click.option('--scalar', '-s', default=5, type=click.IntRange(1, 8), help="n_day資料的純量")
+@click.option('--roi_limit', '-r', default=-10.0, show_default=True, type=float, help='roi虧損參數')
+def get_kdj(code, principal, init_vol, start_date, end_date, n_day,
+            use_weekly, use_monthly, scalar, roi_limit):
+    data = do_kdj(
+        code=code, principal=principal, init_vol=init_vol, start_date=start_date.date(), end_date=end_date.date(),
+        n_day=n_day, use_weekly=use_weekly, use_monthly=use_monthly, scalar=scalar, roi_limit=roi_limit, progress=True)
+
+    # 顯示模擬結果
+    if len(data) > 0:
+        show_simulate_result(result=data)
+
+
+@sim_group.command('all_kdj')
+@click.option('--principal', '-p', help="模擬本金", default=50*10000, type=int, required=True)
+@click.option('--init_vol', '-v', help="初始買量", default=2, type=int, required=True)
+@click.option('--start_date', '-sd', help="設定模擬開始日期", type=click.DateTime(formats=["%Y-%m-%d"]), required=True)
+@click.option('--end_date', '-ed', help="設定模擬結束日期", type=click.DateTime(formats=["%Y-%m-%d"]), required=True)
+@click.option('--n_day', '-n', default=9, show_default=True, type=click.IntRange(3, 12), help="資料表計算天數")
+@click.option('--use_weekly', is_flag=True, help='使用每週歷史資料表來計算')
+@click.option('--use_monthly', is_flag=True, help='使用每月歷史資料表來計算')
+@click.option('--scalar', '-s', default=5, type=click.IntRange(1, 8), help="n_day資料的純量")
+@click.option('--top_size', '-t', default=20, type=int, help='設定top大小')
+@click.option('--limit_price', '-l', default=25, type=int, help='股價低於設定值')
+@click.option('--roi_limit', '-r', default=-10.0, show_default=True, type=float, help='roi虧損參數')
+def get_all_kdj(principal, init_vol, start_date, end_date, n_day,
+                use_weekly, use_monthly, scalar, top_size, limit_price, roi_limit):
+    data = do_all_kdj(
+        principal=principal, init_vol=init_vol, start_date=start_date.date(), end_date=end_date.date(),
+        n_day=n_day, use_weekly=use_weekly, use_monthly=use_monthly, scalar=scalar,
         top_size=top_size, limit_price=limit_price, roi_limit=roi_limit, progress=True)
 
     # 顯示模擬結果

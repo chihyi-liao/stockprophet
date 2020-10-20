@@ -11,15 +11,43 @@ from stockprophet.cli.common import (
 )
 
 
-def do_get_kdj(type_s: str, use_weekly: bool, use_monthly: bool, scalar: int, progress: bool = False) -> list:
+def check_kdj_buy_point(k_data: list, d_data: list, j_data: list) -> bool:
+    result = False
+    if len(k_data) < 2:
+        return result
+
+    if k_data[-1] > 30 or d_data[-1] > 30:
+        return result
+
+    if k_data[-2] - d_data[-2] < 0 < k_data[-1] - d_data[-1]:
+        result = True
+
+    return result
+
+
+def check_kdj_sell_point(k_data: list, d_data: list, j_data: list) -> bool:
+    result = False
+    if len(k_data) < 2:
+        return result
+
+    if k_data[-1] < 70 or d_data[-1] < 70:
+        return result
+
+    if k_data[-2] - d_data[-2] > 0 > k_data[-1] - d_data[-1]:
+        result = True
+
+    return result
+
+
+def do_get_kdj(n_day: int, type_s: str, use_weekly: bool, use_monthly: bool,
+               scalar: int, progress: bool = False) -> list:
     result = []
 
     # 設定初始日期
-    n_day = 9
     date_data = get_stock_dates()
     end_date = get_latest_stock_date(date_data.get("market_holiday", []))
-    season_date = get_latest_season_date(end_date)
     start_date = end_date - timedelta(days=scalar*n_day)
+    season_date = get_latest_season_date(end_date)
 
     s = get_session()
     stock_list = db_mgr.stock.readall_api(s, type_s=type_s, is_alive=True)
@@ -47,8 +75,7 @@ def do_get_kdj(type_s: str, use_weekly: bool, use_monthly: bool, scalar: int, pr
         code = stock['code']
         name = stock['name']
         key = "%s(%s)" % (name, code)
-        stock_data = table.read_api(
-            s, code=code, start_date=start_date, end_date=end_date, limit=0)
+        stock_data = table.read_api(s, code=code, start_date=start_date, end_date=end_date, limit=0)
         high_values = []
         low_values = []
         close_values = []
@@ -92,14 +119,7 @@ def do_get_kdj(type_s: str, use_weekly: bool, use_monthly: bool, scalar: int, pr
             continue
 
         k_data, d_data, j_data = compute.kdj(high_values, low_values, close_values, n_day)
-        if len(k_data) < 2:
-            continue
-
-        if k_data[-1] > 20 or d_data[-1] > 20:
-            continue
-
-        # 收集金叉
-        if k_data[-1] - k_data[-2] > 0 and k_data[-1] - d_data[-2] > 0:
+        if check_kdj_buy_point(k_data=k_data, d_data=d_data, j_data=j_data) is True:
             result.append(tmp[key])
 
     return result

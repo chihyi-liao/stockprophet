@@ -36,13 +36,15 @@ def get_macd(n_day, type_s, use_weekly, use_monthly, fast, slow, dif):
 
 
 @get_group.command('kdj')
-@click.option('--scalar', '-s', default=4, type=click.IntRange(1, 8), help="9天資料的粒度")
+@click.option('--n_day', '-n', default=9, show_default=True, type=click.IntRange(3, 12), help="資料表計算天數")
 @click.option('--type_s', '-t', help="指定股市為上市或上櫃", type=click.Choice(['tse', 'otc']))
 @click.option('--use_weekly', is_flag=True, help='使用每週歷史資料表來計算')
 @click.option('--use_monthly', is_flag=True, help='使用每月歷史資料表來計算')
-def get_kdj(type_s, use_weekly, use_monthly, scalar):
-    data = do_get_kdj(type_s=type_s, use_weekly=use_weekly,
-                      use_monthly=use_monthly, scalar=scalar, progress=True)
+@click.option('--scalar', '-s', default=5, type=click.IntRange(1, 8), help="n_day資料的純量")
+def get_kdj(n_day: int, type_s: str, use_weekly: bool, use_monthly: bool, scalar: int):
+    data = do_get_kdj(
+        n_day=n_day, type_s=type_s, use_weekly=use_weekly, use_monthly=use_monthly,
+        scalar=scalar, progress=True)
 
     # 顯示輸出
     if len(data) > 0:
