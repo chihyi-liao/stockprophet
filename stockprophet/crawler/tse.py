@@ -95,6 +95,10 @@ def fetch_stock_category(dt: date, retry: int = 10) -> dict:
                 if not data:
                     continue
 
+                # 證交所有時會出現錯誤的查詢日期資訊： {"stat": "查詢日期小於93年2月11日，請重新查詢!"}
+                if data.get('stat') and "請重新查詢" in data['stat']:
+                    continue
+
                 # 處理資料字串
                 for key, value in data.items():
                     _fields = 'fields'
@@ -113,7 +117,6 @@ def fetch_stock_category(dt: date, retry: int = 10) -> dict:
                         result[_category] = _data
                         break
                 logger.info("取得 '%s'(%s) 資料", dt.strftime("%Y-%m-%d"), _category)
-                logger.info("200: %s", resp.text)
                 break
             else:
                 logger.warning("無法取得'%s'上市類股(%s)資料", dt.strftime("%Y-%m-%d"), _category)
