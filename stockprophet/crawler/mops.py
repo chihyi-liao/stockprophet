@@ -24,11 +24,12 @@ logger = get_logger(__name__)
 def translate_income_statement(data):
     result = {}
     translate_table = {
-        '營業收入合計': 'net_sales', '營業成本合計': 'cost_of_goods_sold',
+        '營業收入合計': 'net_sales', '收入合計': 'net_sales', '營業成本合計': 'cost_of_goods_sold',
         '營業毛利（毛損）淨額': 'gross_profit', '營業費用合計': 'operating_expenses',
         '營業利益（損失）': 'operating_income', '營業外收入及支出合計': 'total_non_op_income_expenses',
         '稅前淨利（淨損）': 'pre_tax_income', '所得稅費用（利益）合計': 'income_tax_expense',
-        '本期淨利（淨損）': 'net_income', '其他綜合損益（淨額）': 'other_comprehensive_income',
+        '所得稅費用（利益）': 'income_tax_expense', '本期淨利（淨損）': 'net_income',
+        '其他綜合損益（淨額）': 'other_comprehensive_income', '其他綜合損益淨額': 'other_comprehensive_income',
         '本期綜合損益總額': 'consolidated_net_income', '基本每股盈餘': 'eps'}
     for key, val in data.items():
         # noinspection PyBroadException
@@ -117,14 +118,18 @@ def fetch_monthly_revenue(type_s: str, year: int, month: int, retry: int = 3):
             tree = html.fromstring(resp.text)
             root = "/html/body/center/center/table//tr[position() >=2 and position() <= last()-1]"
             for dom in tree.xpath(root):
-                stock_revenue = []
+                stock_data = []
                 for td in dom.xpath("td[position()>=0 and position()<=3]/text()"):
-                    stock_revenue.append(td.strip())
+                    stock_data.append(td.strip())
 
-                if len(stock_revenue) == 3:
-                    code = stock_revenue[0]
-                    revenue = stock_revenue[2]
-                    result[code] = revenue
+                for td in dom.xpath("td[position()>=11 and position()<=11]/text()"):
+                    stock_data.append(td.strip())
+
+                if len(stock_data) == 4:
+                    code = stock_data[0]
+                    revenue = stock_data[2]
+                    note = stock_data[-1]
+                    result[code] = [revenue, note]
 
             if result:
                 logger.warning("取得 %s %s-%s 月營收報表資料" % (type_s, year, month))
@@ -726,7 +731,10 @@ class CrawlerTask(threading.Thread):
                 stock_date_id = mn_date_list[0]['id']
 
                 data = fetch_monthly_revenue(type_s, mn_start_date.year, mn_start_date.month)
-                for code, value in data.items():
+                for code, values in data.items():
+                    if len(values) != 2:
+                        continue
+
                     db_lock.acquire()
                     revenue_list = db_mgr.stock_monthly_revenue.read_api(
                         self._session, code=code, start_date=mn_start_date)
@@ -741,18 +749,18 @@ class CrawlerTask(threading.Thread):
 
                     # noinspection PyBroadException
                     try:
-                        val = int(value.replace(',', ''))
-                        revenue = val
+                        revenue = int(values[0].replace(',', ''))
+                        note = values[1].replace('-', '')
                     except Exception:
                         continue
 
-                    name = stock_list[0]['name']
-                    data_list = [
-                        {'stock_id': stock_list[0]['id'], 'stock_date_id': stock_date_id, 'revenue': revenue}]
+                    data_list = [{
+                        'stock_id': stock_list[0]['id'], 'stock_date_id': stock_date_id,
+                        'revenue': revenue, 'note': note
+                    }]
 
                     db_mgr.stock_monthly_revenue.create_api(self._session, data_list=data_list)
-                    logger.info("%s(%s)建立 '%s' 的month_date" % (
-                        name, code, mn_start_date.strftime("%Y-%m-%d")))
+                logger.info("建立 '%s' 的 revenue" % (mn_start_date.strftime("%Y-%m")))
 
     def run(self):
         logger.info("Starting MOPS thread")
