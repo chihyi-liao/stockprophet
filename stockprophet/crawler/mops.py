@@ -94,7 +94,7 @@ def check_over_run(tree: Optional[any]) -> bool:
         return False
 
 
-def fetch_monthly_revenue(type_s: str, year: int, month: int, retry: int = 3):
+def fetch_monthly_revenue(type_s: str, year: int, month: int, retry: int = 20):
     """
     取得月營收資料可以從2013/01到現在
     """
@@ -141,7 +141,7 @@ def fetch_monthly_revenue(type_s: str, year: int, month: int, retry: int = 3):
     return result
 
 
-def fetch_income_statement(type_s: str, code: str, year: int, season: int, step: str = '1', retry: int = 3):
+def fetch_income_statement(type_s: str, code: str, year: int, season: int, step: str = '1', retry: int = 20):
     """Income statement is started from 2013/01 to now, which is based on IFRSs policy
     """
     req = HttpRequest()
@@ -190,7 +190,7 @@ def fetch_income_statement(type_s: str, code: str, year: int, season: int, step:
     return translate_income_statement(result)
 
 
-def fetch_balance_sheet(type_s: str, code: str, year: int, season: int, step: str = '1', retry: int = 3):
+def fetch_balance_sheet(type_s: str, code: str, year: int, season: int, step: str = '1', retry: int = 20):
     """Balance sheet is started from 2013/01 to now, which is based on IFRSs policy
     """
     req = HttpRequest()
@@ -707,7 +707,7 @@ class CrawlerTask(threading.Thread):
             start_date, _ = month_range(self.start_date)
             for current_date in date_range(self.start_date, self.end_date):
                 # 判斷時間已做到最新的報表
-                if current_date.year >= self.end_date.year and current_date.month > self.end_date.month:
+                if current_date.year >= self.end_date.year and current_date.month >= self.end_date.month:
                     break
 
                 # 只處理每月第一天, 避免重複計算
@@ -727,21 +727,17 @@ class CrawlerTask(threading.Thread):
                 else:
                     db_lock.release()
 
-                # 取得 stock_date_id
-                stock_date_id = mn_date_list[0]['id']
+                # 檢查revenue是否存在, 已存在則跳過
+                revenue_list = db_mgr.stock_monthly_revenue.readall_api(
+                    self._session, type_s=type_s, stock_date=mn_start_date)
+                if len(revenue_list) > 0:
+                    continue
 
+                # 取得月營收資料並寫入資料庫
                 data = fetch_monthly_revenue(type_s, mn_start_date.year, mn_start_date.month)
                 for code, values in data.items():
                     if len(values) != 2:
                         continue
-
-                    db_lock.acquire()
-                    revenue_list = db_mgr.stock_monthly_revenue.read_api(
-                        self._session, code=code, start_date=mn_start_date)
-                    if len(revenue_list) > 0:  # 已存在則跳過
-                        db_lock.release()
-                        continue
-                    db_lock.release()
 
                     stock_list = db_mgr.stock.read_api(self._session, type_s=type_s, code=code)
                     if len(stock_list) == 0:
@@ -755,7 +751,7 @@ class CrawlerTask(threading.Thread):
                         continue
 
                     data_list = [{
-                        'stock_id': stock_list[0]['id'], 'stock_date_id': stock_date_id,
+                        'stock_id': stock_list[0]['id'], 'stock_date_id': mn_date_list[0]['id'],
                         'revenue': revenue, 'note': note
                     }]
 
