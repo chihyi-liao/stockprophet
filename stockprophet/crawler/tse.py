@@ -50,6 +50,10 @@ def fetch_stock_history(dt: date, retry: int = 10) -> list:
             if not data:
                 continue
 
+            # 證交所有時會出現錯誤的查詢日期資訊： {"stat": "查詢日期小於93年2月11日，請重新查詢!"}
+            if data.get('stat') and "請重新查詢" in data['stat']:
+                continue
+
             # 處理資料字串
             for key, value in data.items():
                 _fields = 'fields'

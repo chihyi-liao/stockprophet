@@ -28,7 +28,7 @@ STOCK_URL = "https://www.tpex.org.tw/web/stock/aftertrading/otc_quotes_no1430/st
 logger = get_logger(__name__)
 
 
-def fetch_stock_history(dt: date, retry: int = 20) -> list:
+def fetch_stock_history(dt: date, retry: int = 10) -> list:
     """
     依據日期的抓取該日所有股市交易行情
     輸出格式: [('1240', '茂生農經', '48,000', '', '2,609,300', '54.60', '55.30', '54.00', '55.30', '+', '0.5'), (...)]
@@ -74,7 +74,7 @@ def fetch_stock_history(dt: date, retry: int = 20) -> list:
     return result
 
 
-def fetch_stock_category(dt: date, retry: int = 20) -> dict:
+def fetch_stock_category(dt: date, retry: int = 10) -> dict:
     """
     依據日期抓取所有類股資料
     輸出格式: {'食品工業': [('1258', '其祥-KY'), ('1264', '德麥'), ('1796', '金穎生技'),

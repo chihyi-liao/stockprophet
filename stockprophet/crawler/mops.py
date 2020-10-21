@@ -94,7 +94,7 @@ def check_over_run(tree: Optional[any]) -> bool:
         return False
 
 
-def fetch_monthly_revenue(type_s: str, year: int, month: int, retry: int = 20):
+def fetch_monthly_revenue(type_s: str, year: int, month: int, retry: int = 10):
     """
     取得月營收資料可以從2013/01到現在
     """
@@ -141,7 +141,7 @@ def fetch_monthly_revenue(type_s: str, year: int, month: int, retry: int = 20):
     return result
 
 
-def fetch_income_statement(type_s: str, code: str, year: int, season: int, step: str = '1', retry: int = 20):
+def fetch_income_statement(type_s: str, code: str, year: int, season: int, step: str = '1', retry: int = 10):
     """Income statement is started from 2013/01 to now, which is based on IFRSs policy
     """
     req = HttpRequest()
@@ -190,7 +190,7 @@ def fetch_income_statement(type_s: str, code: str, year: int, season: int, step:
     return translate_income_statement(result)
 
 
-def fetch_balance_sheet(type_s: str, code: str, year: int, season: int, step: str = '1', retry: int = 20):
+def fetch_balance_sheet(type_s: str, code: str, year: int, season: int, step: str = '1', retry: int = 10):
     """Balance sheet is started from 2013/01 to now, which is based on IFRSs policy
     """
     req = HttpRequest()
