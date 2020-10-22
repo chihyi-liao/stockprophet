@@ -50,7 +50,7 @@ stock_metadata_table = Table(
     Column('income_update_date', Date, nullable=True),
     Column('balance_create_date', Date, nullable=True),
     Column('balance_update_date', Date, nullable=True),
-    Column('stock_id', ForeignKey('stock.id'), nullable=False, primary_key=True))
+    Column('stock_id', ForeignKey('stock.id'), nullable=False))
 
 mapper(StockMetadata, stock_metadata_table,
        properties={
