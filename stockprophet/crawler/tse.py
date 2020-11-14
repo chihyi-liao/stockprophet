@@ -1,5 +1,6 @@
 import random
 import threading
+import time
 from datetime import datetime, date
 
 from stockprophet.db import create_local_session, db_lock
@@ -24,8 +25,70 @@ TSE_CATEGORY = [
     ('0099P', 'ETF')
 ]
 STOCK_URL = "https://www.twse.com.tw/exchangeReport/MI_INDEX"
+STOCK_REVIVE_URL = "https://www.twse.com.tw/exchangeReport/TWTAUU"
 
 logger = get_logger(__name__)
+
+
+def fetch_stock_revive_info(retry: int = 10) -> list:
+    """
+    歷年上櫃減資資訊資料表
+    輸出格式: [ {'code': '2321', 'name': '東訊', 'revive_date': '2020-10-19', 'old_price': '3.79', 'new_price': '12.63'}]
+    """
+    result = []
+    start_date = date(2011, 1, 1)
+    end_date = datetime.today()
+    req = HttpRequest()
+    kwargs = dict()
+    kwargs['headers'] = req.default_headers()
+    kwargs['params'] = {'response': 'json',
+                        'lang': 'zh',
+                        'strDate': start_date.strftime('%Y%m%d'),
+                        'endDate': end_date.strftime('%Y%m%d'),
+                        '_': int(time.time() * 1000)}
+    for i in range(retry):
+        req.wait_interval = random.randint(5, 10)
+        resp = req.send_data(method='GET', url=STOCK_REVIVE_URL, **kwargs)
+        if resp.status_code == 200:
+            data = resp.json()
+            if not data:
+                continue
+
+            # 證交所有時會出現錯誤的查詢日期資訊： {"stat": "查詢日期小於93年2月11日，請重新查詢!"}
+            if data.get('stat') and "請重新查詢" in data['stat']:
+                continue
+
+            # 處理資料字串
+            for key, value in data.items():
+                _fields = 'fields'
+                _key = key.lower()
+                if _fields in _key and len(value) == 11:
+                    postfix = _key.replace(_fields, '')
+                    data_list = data.get('data' + postfix, [])
+                    for r in data_list:
+                        code = r[1]
+                        # 只抓取代碼長度為4的資料
+                        if len(code) != 4:
+                            continue
+
+                        zh_date_list = r[0].split('/')
+                        if len(zh_date_list) != 3:
+                            continue
+                        year = 1911 + int(zh_date_list[0])
+                        month = int(zh_date_list[1])
+                        day = int(zh_date_list[2])
+                        revive_date = date(year, month, day)
+                        name = r[2]
+                        old_price = r[3]
+                        new_price = r[4]
+                        result.append({
+                            'code': code, 'name': name, 'revive_date': revive_date.strftime("%Y-%m-%d"),
+                            'old_price': old_price, 'new_price': new_price})
+                    break
+            break
+        else:
+            logger.warning("無法取得所有上市減資歷史資資料")
+    return result
 
 
 def fetch_stock_history(dt: date, retry: int = 10) -> list:

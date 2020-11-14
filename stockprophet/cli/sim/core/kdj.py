@@ -5,7 +5,7 @@ from stockprophet.cli.ta.core import compute
 from stockprophet.cli.ta.core.kdj import check_kdj_buy_point, check_kdj_sell_point
 from stockprophet.cli.sim.core import account
 from stockprophet.crawler.utils.date import date_range, week_range, month_range, is_weekday
-from stockprophet.crawler.utils.common import get_stock_dates
+from stockprophet.crawler.utils.common import get_stock_dates, get_stock_revive_data
 from stockprophet.db import get_session
 from stockprophet.db import manager as db_mgr
 
@@ -149,6 +149,15 @@ def do_all_kdj(principal: int, init_vol: int, start_date: date, end_date: date, 
                use_weekly: bool, use_monthly: bool, scalar: int, top_size: int,
                limit_price: float, roi_limit: float, progress: bool = False) -> list:
     result = []
+
+    # 取得減資股市資料
+    revive_data = {}
+    for data in get_stock_revive_data():
+        code = data['code']
+        if code not in revive_data:
+            revive_data[code] = list()
+        revive_data[code].append(data)
+
     s = get_session()
     # 取得所有的股市資料
     stock_list = db_mgr.stock.readall_api(s, is_alive=True)
@@ -160,6 +169,16 @@ def do_all_kdj(principal: int, init_vol: int, start_date: date, end_date: date, 
 
         code = stock['code']
         name = stock['name']
+        # 排除個股查詢時間內有減資情況
+        flag = False
+        if code in revive_data:
+            for d in revive_data[code]:
+                if start_date < datetime.strptime(d['revive_date'], "%Y-%m-%d").date() < end_date:
+                    flag = True
+                    continue
+        if flag:
+            continue
+
         # 從最新的歷史資料限制股價
         history_list = db_mgr.stock_daily_history.read_api(s, code, end_date=end_date, order_desc=True, limit=1)
         if len(history_list) == 0:

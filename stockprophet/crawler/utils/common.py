@@ -69,6 +69,14 @@ def get_stock_dates():
     return result
 
 
+def get_stock_revive_data():
+    from stockprophet.crawler import tse, otc
+    result = []
+    result.extend(tse.fetch_stock_revive_info())
+    result.extend(otc.fetch_stock_revive_info())
+    return result
+
+
 def convert_to_float(string):
     # noinspection PyBroadException
     try:

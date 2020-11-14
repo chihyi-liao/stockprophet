@@ -1,5 +1,6 @@
 import random
 import threading
+import time
 from datetime import datetime, date
 
 from stockprophet.db import create_local_session, db_lock
@@ -24,8 +25,61 @@ OTC_CATEGORY = [
     ('31', '其他電子業'), ('32', '文化創意業'), ('33', '農業科技業'), ('34', '電子商務業')
 ]
 STOCK_URL = "https://www.tpex.org.tw/web/stock/aftertrading/otc_quotes_no1430/stk_wn1430_result.php"
+STOCK_REVIVE_URL = "https://www.tpex.org.tw/web/stock/exright/revivt/revivt_result.php"
 
 logger = get_logger(__name__)
+
+
+def fetch_stock_revive_info(retry: int = 10) -> list:
+    """
+    歷年上櫃減資資訊資料表
+    輸出格式: [{'code': '4153', 'name': '鈺緯', 'revive_date': '2020-10-19', 'old_price': '27.20', 'new_price': '30.62'}]
+    """
+    result = []
+    start_date = date(2013, 1, 1)
+    end_date = datetime.today()
+    req = HttpRequest()
+    kwargs = dict()
+    kwargs['headers'] = req.default_headers()
+    kwargs['params'] = {
+        'o': 'json', 'l': 'zh',
+        'd': '{}/{:02d}/{:02d}'.format(start_date.year - 1911, start_date.month, start_date.day),
+        'ed': '{}/{:02d}/{:02d}'.format(end_date.year - 1911, end_date.month, end_date.day),
+        '_': int(time.time() * 1000)}
+
+    for i in range(retry):
+        req.wait_interval = random.randint(3, 5)
+        resp = req.send_data(method='GET', url=STOCK_REVIVE_URL, **kwargs)
+        if resp.status_code == 200:
+            data = resp.json()
+            if not data:
+                continue
+
+            stocks = data.get('aaData', [])
+            for stock in stocks:
+                code = stock[1]
+                # 只抓取代碼長度為4的資料
+                if len(code) != 4:
+                    continue
+
+                str_zh_date = str(stock[0])
+                if len(str_zh_date) != 7:
+                    continue
+                year = 1911 + int(str_zh_date[0:3])
+                month = int(str_zh_date[3:5])
+                day = int(str_zh_date[5:7])
+                revive_date = date(year, month, day)
+                name = stock[2]
+                old_price = stock[3]
+                new_price = stock[4]
+                result.append({
+                    'code': code, 'name': name, 'revive_date': revive_date.strftime("%Y-%m-%d"),
+                    'old_price': old_price, 'new_price': new_price})
+            break
+        else:
+            logger.warning("無法取得所有上櫃減資歷史資資料")
+
+    return result
 
 
 def fetch_stock_history(dt: date, retry: int = 10) -> list:
