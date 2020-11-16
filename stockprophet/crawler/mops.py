@@ -6,8 +6,8 @@ from typing import Optional
 from sqlalchemy.orm.session import Session
 from lxml import html
 
-from stockprophet.db import create_local_session, db_lock
-from stockprophet.db import manager as db_mgr
+from stockprophet.db import get_local_session, db_lock
+from stockprophet.db.manager import sync_api as db_mgr
 from stockprophet.utils import get_logger
 from .utils.date import (
     get_latest_stock_date, season_range, latest_year_season, date_to_year_season,
@@ -440,7 +440,7 @@ class CrawlerTask(threading.Thread):
                  build_income_table: bool = False, build_balance_table: bool = False,
                  build_revenue_table: bool = False):
         threading.Thread.__init__(self)
-        self._session = create_local_session()
+        self._session = get_local_session()
         self._date_data = get_stock_dates()
         self._build_income_table = build_income_table
         self._build_balance_table = build_balance_table

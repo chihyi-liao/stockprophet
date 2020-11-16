@@ -1,5 +1,5 @@
 from stockprophet.db import get_session, db_lock
-from stockprophet.db import manager as db_mgr
+from stockprophet.db.manager import sync_api as db_mgr
 
 
 STOCK_DATES_URL = "https://raw.githubusercontent.com/chihyi-liao/stock-data/master/date_data.json"

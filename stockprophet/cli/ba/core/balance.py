@@ -2,7 +2,7 @@ from stockprophet.cli.common import progressbar
 from stockprophet.crawler.utils.date import get_latest_stock_date, get_latest_season_date
 from stockprophet.crawler.utils.common import get_stock_dates
 from stockprophet.db import get_session
-from stockprophet.db import manager as db_mgr
+from stockprophet.db.manager import sync_api as db_mgr
 from stockprophet.cli.common import calc_pbr, calc_gross_margin, calc_op_margin, calc_eps
 
 

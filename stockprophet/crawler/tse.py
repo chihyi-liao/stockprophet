@@ -3,8 +3,8 @@ import threading
 import time
 from datetime import datetime, date
 
-from stockprophet.db import create_local_session, db_lock
-from stockprophet.db import manager as db_mgr
+from stockprophet.db import get_local_session, db_lock
+from stockprophet.db.manager import sync_api as db_mgr
 from stockprophet.utils import get_logger
 from .utils.common import (
     HttpRequest, get_stock_dates, convert_to_float, convert_to_int, convert_to_direction
@@ -198,7 +198,7 @@ class CrawlerTask(threading.Thread):
     def __init__(self, start_date: date = None, end_date: date = None, build_period_table=False):
         threading.Thread.__init__(self)
         self._stock_type = "tse"
-        self._session = create_local_session()
+        self._session = get_local_session()
         self._loss_fetch = []
         self._build_period_table = build_period_table
         if not start_date:

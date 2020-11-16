@@ -2,9 +2,9 @@ from sqlalchemy import Table, Column, ForeignKey, UniqueConstraint
 from sqlalchemy.orm import mapper, relationship
 from sqlalchemy.types import Boolean, Integer, String
 
-from stockprophet.db import metadata
-from stockprophet.db.model.stock_type import StockType
-from stockprophet.db.model.stock_category import StockCategory
+from stockprophet_db import metadata
+from stockprophet_db.model.stock_type import StockType
+from stockprophet_db.model.stock_category import StockCategory
 
 
 class Stock(object):

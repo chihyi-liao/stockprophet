@@ -7,7 +7,7 @@ from stockprophet.cli.sim.core import account
 from stockprophet.crawler.utils.date import date_range, week_range, month_range, is_weekday
 from stockprophet.crawler.utils.common import get_stock_dates, get_stock_revive_data
 from stockprophet.db import get_session
-from stockprophet.db import manager as db_mgr
+from stockprophet.db.manager import sync_api as db_mgr
 
 
 def do_macd(code: str, principal: int, init_vol: int, start_date: date, end_date: date, n_day: int,

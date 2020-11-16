@@ -7,6 +7,8 @@ from stockprophet.db import metadata
 
 
 class User(object):
+    __table__ = None
+
     def __init__(self, name: str, email: str, password: str):
         m = hashlib.sha1()
         m.update(password.encode("utf-8"))

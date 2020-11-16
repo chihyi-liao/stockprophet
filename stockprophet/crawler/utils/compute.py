@@ -3,7 +3,7 @@ from datetime import datetime, date
 from sqlalchemy.orm.session import Session
 
 from stockprophet.db import db_lock
-from stockprophet.db import manager as db_mgr
+from stockprophet.db.manager import sync_api as db_mgr
 from stockprophet.utils import get_logger
 from .common import get_stock_dates
 from .date import date_range, week_range, check_all_holiday, month_range

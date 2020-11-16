@@ -4,8 +4,8 @@ from sqlalchemy import Table, Column, ForeignKey
 from sqlalchemy.orm import mapper, relationship
 from sqlalchemy.types import Integer, Date
 
-from stockprophet.db.model.stock import Stock
 from stockprophet.db import metadata
+from stockprophet.db.model.stock import Stock
 
 
 class StockMetadata(object):

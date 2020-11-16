@@ -15,31 +15,21 @@ db_lock = threading.Lock()
 
 def init_db(config: dict):
     global _ENGINE, _SESSION
-    if _ENGINE is None and _SESSION is None:
+    if _ENGINE is not None:
+        _ENGINE = None
+
+    if _SESSION is not None:
+        _SESSION.close()
+
+    drivername = config.get('drivername', '')
+    if 'sqlite' in drivername:
+        _ENGINE = create_engine(URL(**config), connect_args={"check_same_thread": False})
+    else:
         _ENGINE = create_engine(URL(**config), pool_recycle=3600)
-        _SESSION = scoped_session(sessionmaker(autocommit=False,
-                                               autoflush=True,
-                                               expire_on_commit=False,
-                                               bind=_ENGINE))
-        metadata.create_all(bind=_ENGINE)
 
-
-def get_session():
-    global _SESSION
-    return _SESSION
-
-
-def engine():
-    global _ENGINE
-    return _ENGINE
-
-
-def create_local_session():
-    global _ENGINE
-    session = sessionmaker(
-        autocommit=False, autoflush=True,
-        expire_on_commit=False, bind=_ENGINE)
-    return session()
+    _SESSION = scoped_session(sessionmaker(
+        autocommit=False, autoflush=True, expire_on_commit=False, bind=_ENGINE))
+    metadata.create_all(bind=_ENGINE)
 
 
 def recreate_session():
@@ -54,3 +44,21 @@ def recreate_session():
                                            autoflush=True,
                                            expire_on_commit=False,
                                            bind=_ENGINE))
+
+
+def get_local_session():
+    global _ENGINE
+    session = sessionmaker(
+        autocommit=False, autoflush=True,
+        expire_on_commit=False, bind=_ENGINE)()
+    return session
+
+
+def get_session():
+    global _SESSION
+    return _SESSION
+
+
+def get_engine():
+    global _ENGINE
+    return _ENGINE
