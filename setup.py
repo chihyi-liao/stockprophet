@@ -31,7 +31,8 @@ INSTALL_REQUIRES = [
     'psycopg2-binary>= 2.8.5',
     'PyMySQL>==0.10.1',
     'configobj>=5.0.6',
-    'numpy>=1.18.3'
+    'numpy>=1.18.3',
+    'databases>=0.3.2'
 ]
 
 
@@ -40,6 +41,8 @@ PACKAGES = [
     'stockprophet.db',
     'stockprophet.db.model',
     'stockprophet.db.manager',
+    'stockprophet.db.manager.sync_api',
+    'stockprophet.db.manager.async_api',
     'stockprophet.crawler',
     'stockprophet.crawler.utils',
     'stockprophet.cli',
