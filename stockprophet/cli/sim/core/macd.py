@@ -5,7 +5,7 @@ from stockprophet.cli.ta.core import compute
 from stockprophet.cli.ta.core.macd import check_macd_buy_point, check_macd_sell_point
 from stockprophet.cli.sim.core import account
 from stockprophet.crawler.utils.date import date_range, week_range, month_range, is_weekday
-from stockprophet.crawler.utils.common import get_stock_dates, get_stock_revive_data
+from stockprophet.crawler.utils.common import get_stock_dates
 from stockprophet.db import get_session
 from stockprophet.db.manager import sync_api as db_mgr
 
@@ -46,8 +46,12 @@ def do_macd(code: str, principal: int, init_vol: int, start_date: date, end_date
     my_account = account.Account(principal=principal)
     last_price = 0.0
     last_date = None
+    init_vol = init_vol * 1000
     tmp_vol = init_vol
     s = get_session()
+
+    # 取得該股是否有減資資訊
+    reduction_list = db_mgr.stock_capital_reduction.read_api(s, code=code)
 
     # 依據起始跟結束日期開始迭代日期
     total = date_to_integer(end_date) - date_to_integer(start_date)
@@ -64,6 +68,14 @@ def do_macd(code: str, principal: int, init_vol: int, start_date: date, end_date
         # 檢查日期是否為週末而且不是補上班日
         if is_weekday(current_date) and current_date not in trading_list:
             continue
+
+        # 處理減資行情
+        for reduction in reduction_list:
+            if current_date == reduction['revive_date']:
+                my_account.calculate_reduction(
+                    dt=current_date, new_kilo_stock=reduction['new_kilo_stock'],
+                    give_back_per_stock=reduction['give_back_per_stock'],
+                    old_price=reduction['old_price'], new_price=reduction['new_price'])
 
         # 因為MACD需要過去一段時間的歷史資料,因此需設定資料表的起始日期
         if use_weekly:
@@ -146,14 +158,6 @@ def do_all_macd(principal: int, init_vol: int, start_date: date, end_date: date,
                 top_size: int, limit_price: float, roi_limit: float, progress: bool = False) -> list:
     result = []
 
-    # 取得減資股市資料
-    revive_data = {}
-    for data in get_stock_revive_data():
-        code = data['code']
-        if code not in revive_data:
-            revive_data[code] = list()
-        revive_data[code].append(data)
-
     s = get_session()
     # 取得所有的股市資料
     stock_list = db_mgr.stock.readall_api(s, is_alive=True)
@@ -165,16 +169,6 @@ def do_all_macd(principal: int, init_vol: int, start_date: date, end_date: date,
 
         code = stock['code']
         name = stock['name']
-        # 排除個股查詢時間內有減資情況
-        flag = False
-        if code in revive_data:
-            for d in revive_data[code]:
-                if start_date < datetime.strptime(d['revive_date'], "%Y-%m-%d").date() < end_date:
-                    flag = True
-                    continue
-        if flag:
-            continue
-
         # 從最新的歷史資料限制股價
         history_list = db_mgr.stock_daily_history.read_api(s, code, end_date=end_date, order_desc=True, limit=1)
         if len(history_list) == 0:

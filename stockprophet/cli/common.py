@@ -96,7 +96,7 @@ def show_simulate_result(result: list):
                 sell_vol=my_align("賣量", s_size, 'R'),
                 avg_price=my_align("平均價", s_size, 'R'),
                 volume=my_align("總量", s_size, 'R'),
-                stock_assets=my_align("股票資產", n_size, 'R'),
+                stock_assets=my_align("股票市值", n_size, 'R'),
                 principal=my_align("本金", s_size, 'R'),
                 total_assets=my_align("總資產", s_size, 'R'),
                 roi=my_align("ROI(%)", s_size, 'R'))
