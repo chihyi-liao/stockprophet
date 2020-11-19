@@ -3,6 +3,8 @@ import threading
 import time
 from datetime import datetime, date
 
+from lxml import html
+
 from stockprophet.db import get_local_session, db_lock
 from stockprophet.db.manager import sync_api as db_mgr
 from stockprophet.utils import get_logger
@@ -26,18 +28,24 @@ OTC_CATEGORY = [
 ]
 STOCK_URL = "https://www.tpex.org.tw/web/stock/aftertrading/otc_quotes_no1430/stk_wn1430_result.php"
 STOCK_REVIVE_URL = "https://www.tpex.org.tw/web/stock/exright/revivt/revivt_result.php"
+STOCK_REVIVE_DETAIL_URL = "https://www.tpex.org.tw/web/stock/exright/revivt/recap.php"
+
 
 logger = get_logger(__name__)
 
 
-def fetch_stock_revive_info(retry: int = 10) -> list:
+def fetch_stock_revive_info(start_date: date = None, end_date: date = None, retry: int = 10) -> list:
     """
     歷年上櫃減資資訊資料表
-    輸出格式: [{'code': '4153', 'name': '鈺緯', 'revive_date': '2020-10-19', 'old_price': '27.20', 'new_price': '30.62'}]
+    輸出格式: [{'code': '4153', 'name': '鈺緯', 'revive_date': date(2020-10-19), 'old_price': 27.20, 'new_price': 30.62}]
     """
     result = []
-    start_date = date(2013, 1, 1)
-    end_date = datetime.today()
+    if not start_date:
+        start_date = date(2013, 1, 1)
+
+    if not end_date:
+        end_date = datetime.today()
+
     req = HttpRequest()
     kwargs = dict()
     kwargs['headers'] = req.default_headers()
@@ -55,30 +63,93 @@ def fetch_stock_revive_info(retry: int = 10) -> list:
             if not data:
                 continue
 
-            stocks = data.get('aaData', [])
-            for stock in stocks:
-                code = stock[1]
+            rows = data.get('aaData', [])
+            for r in rows:
+                code = r[1]
                 # 只抓取代碼長度為4的資料
                 if len(code) != 4:
                     continue
 
-                str_zh_date = str(stock[0])
+                str_zh_date = str(r[0])
                 if len(str_zh_date) != 7:
                     continue
                 year = 1911 + int(str_zh_date[0:3])
                 month = int(str_zh_date[3:5])
                 day = int(str_zh_date[5:7])
                 revive_date = date(year, month, day)
-                name = stock[2]
-                old_price = stock[3]
-                new_price = stock[4]
-                result.append({
-                    'code': code, 'name': name, 'revive_date': revive_date.strftime("%Y-%m-%d"),
-                    'old_price': old_price, 'new_price': new_price})
+                name = r[2]
+                old_price = round(float(r[3]), 2)
+                new_price = round(float(r[4]), 2)
+                reason = r[9]
+                data = {
+                    'code': code, 'name': name, 'revive_date': revive_date,
+                    'old_price': old_price, 'new_price': new_price, 'reason': reason}
+                full_href = r[10]
+                if full_href:
+                    url_list = full_href.split("\'")
+                    if len(url_list) > 1:
+                        param = url_list[1].split('?')
+                        if len(param) == 2:
+                            patch_param = param[1].replace('amp;', '')
+                            patch_param = patch_param.replace('%', '%25')
+                            url = "%s?%s" % (STOCK_REVIVE_DETAIL_URL, patch_param)
+                            detail_data = fetch_stock_revive_detail_info(url)
+                            for k, v in detail_data.items():
+                                data[k] = v
+
+                logger.info("取得減資資料: %s" % (data, ))
+                result.append(data)
             break
         else:
             logger.warning("無法取得所有上櫃減資歷史資資料")
 
+    return result
+
+
+def fetch_stock_revive_detail_info(url: str, retry: int = 10) -> dict:
+    result = {}
+    req = HttpRequest()
+    kwargs = dict()
+    kwargs['headers'] = req.default_headers()
+    translate_table = {
+        '每壹仟股換發新股票': 'new_kilo_stock',
+        '停止買賣日期': 'stop_tran_date',
+        '每股退還股款': 'give_back_per_stock'}
+
+    for i in range(retry):
+        req.wait_interval = random.randint(3, 5)
+        resp = req.send_data(method='GET', url=url, **kwargs)
+        if resp.status_code == 200:
+            resp.encoding = 'utf-8'
+            tree = html.fromstring(resp.text)
+            root = "/html/body/center/div/table/tr"
+            for dom in tree.xpath(root):
+                text = ''
+                for j, td in enumerate(dom.xpath("th[position()>=1 and position()<=2]/text()")):
+                    if j == 0:
+                        text = ''
+                        for key, value in translate_table.items():
+                            if key in td.strip():
+                                text = value
+                                break
+                    else:
+                        if text:
+                            value = td.strip().replace('\xa0', ' ')
+                            value = value.split(' ')[0]
+                            if text in ["new_kilo_stock", "give_back_per_stock"]:
+                                try:
+                                    result[text] = round(float(value), 2)
+                                except ValueError:
+                                    logger.error("%s 轉型錯誤" % (text, ))
+                            else:
+                                date_list = value.split('/')
+                                if len(date_list) == 3:
+                                    year = int(date_list[0]) + 1911
+                                    stop_trans_date = date(int(year), int(date_list[1]), int(date_list[2]))
+                                    result[text] = stop_trans_date
+            break
+        else:
+            logger.warning("無法取得上櫃減資明細")
     return result
 
 
@@ -385,6 +456,46 @@ class CrawlerTask(threading.Thread):
 
         return True
 
+    def build_stock_capital_reduction_table(self) -> bool:
+        logger.info("build tse stock_capital_reduction table")
+
+        # 從資料庫取減資股市資料
+        reduction_stocks = db_mgr.stock_capital_reduction.readall_api(self._session, type_s=self._stock_type)
+
+        collect = {}
+        # 取最後減資日期
+        last_revive_date = None
+        if len(reduction_stocks) > 0:
+            last_revive_date = reduction_stocks[-1].get('revive_date')
+            for stock in reduction_stocks:
+                code = stock['code']
+                if not collect.get(code):
+                    collect[code] = list()
+                collect[code].append(stock['revive_date'])
+
+        data_list = fetch_stock_revive_info(start_date=last_revive_date)
+        for r in data_list:
+            code = r['code']
+            stock_list = db_mgr.stock.read_api(self._session, type_s=self._stock_type, code=code)
+            if len(stock_list) == 0:
+                continue
+
+            stock_id = stock_list[0]['id']
+            data = {
+                'stock_id': stock_id, 'old_price': r['old_price'], 'new_price': r['new_price'],
+                'reason': r['reason'], 'new_kilo_stock': r['new_kilo_stock'],
+                'give_back_per_stock': r['give_back_per_stock'], 'stop_tran_date': r['stop_tran_date'],
+                'revive_date': r['revive_date']}
+
+            if not collect.get(code):
+                db_mgr.stock_capital_reduction.create_api(self._session, data_list=[data])
+            else:
+                code_revive_date = collect[code][-1]
+                if r['revive_date'] > code_revive_date:
+                    db_mgr.stock_capital_reduction.create_api(self._session, data_list=[data])
+
+        return True
+
     def build_weekly_history_table(self) -> bool:
         if calc_weekly_history_table(self._session, stock_type=self._stock_type,
                                      start_date=self.start_date, end_date=self.end_date):
@@ -431,6 +542,7 @@ class CrawlerTask(threading.Thread):
         else:
             if self.build_stock_table() is True:
                 self.build_stock_daily_history_table()
+                self.build_stock_capital_reduction_table()
                 self.update_metadata_table()
 
             if len(self._loss_fetch) != 0:
