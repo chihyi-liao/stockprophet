@@ -4,8 +4,8 @@ from sqlalchemy import Table, Column, ForeignKey, UniqueConstraint
 from sqlalchemy.orm import mapper, relationship
 from sqlalchemy.types import Integer, Float, String, Date
 
-from stockprophet_db import metadata
-from stockprophet_db.model.stock import Stock
+from stockprophet.db import metadata
+from stockprophet.db.model.stock import Stock
 
 
 class StockCapitalReduction(object):
