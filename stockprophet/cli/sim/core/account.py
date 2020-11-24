@@ -101,9 +101,8 @@ class Account(object):
         if self.total_volume:
             volume = self.total_volume - int(self.total_volume * (new_kilo_stock / Kilo))
             stock_cost = volume * give_back_per_stock
-            stock_tax = int(stock_cost * Tax)
             avg_price = round(self.avg_price * (new_price / old_price), 2)
-            self.principal += (stock_cost - stock_tax)
+            self.principal += stock_cost
             self.total_volume -= volume
             self.stock_assets = new_price * self.total_volume
             self.avg_price = avg_price
