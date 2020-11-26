@@ -1,4 +1,3 @@
-from datetime import datetime
 import click
 
 from stockprophet.cli.common import show_simulate_result, show_simulate_top_result
