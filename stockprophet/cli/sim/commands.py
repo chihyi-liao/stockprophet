@@ -52,8 +52,8 @@ def get_macd(code, principal, init_vol, start_date, end_date, n_day,
 @click.option('--fast', '-f', default=12, show_default=True, type=int, help='macd 快線參數')
 @click.option('--slow', '-s', default=26, show_default=True, type=int, help='macd 慢線參數')
 @click.option('--dif', '-d', default=9, show_default=True, type=int, help='macd 差離值參數')
-@click.option('--top_size', '-t', default=20, show_default=True, type=int, help='設定top大小')
-@click.option('--limit_price', '-l', default=25.0, show_default=True, type=float, help='股價低於設定值')
+@click.option('--top_size', '-t', default=50, show_default=True, type=int, help='設定top大小')
+@click.option('--limit_price', '-l', default=30.0, show_default=True, type=float, help='股價低於設定值')
 @click.option('--roi_limit', '-r', default=-10.0, show_default=True, type=float, help='roi虧損參數')
 def get_all_macd(principal, init_vol, start_date, end_date, n_day,
                  use_weekly, use_monthly, fast, slow, dif, top_size, limit_price, roi_limit):
@@ -100,8 +100,8 @@ def get_kdj(code, principal, init_vol, start_date, end_date, n_day,
 @click.option('--use_weekly', is_flag=True, help='使用每週歷史資料表來計算')
 @click.option('--use_monthly', is_flag=True, help='使用每月歷史資料表來計算')
 @click.option('--scalar', '-s', default=5, show_default=True, type=click.IntRange(1, 8), help="n_day資料的純量")
-@click.option('--top_size', '-t', default=20, show_default=True, type=int, help='設定top大小')
-@click.option('--limit_price', '-l', default=25.0, show_default=True, type=float, help='股價低於設定值')
+@click.option('--top_size', '-t', default=50, show_default=True, type=int, help='設定top大小')
+@click.option('--limit_price', '-l', default=30.0, show_default=True, type=float, help='股價低於設定值')
 @click.option('--roi_limit', '-r', default=-10.0, show_default=True, type=float, help='roi虧損參數')
 def get_all_kdj(principal, init_vol, start_date, end_date, n_day,
                 use_weekly, use_monthly, scalar, top_size, limit_price, roi_limit):
