@@ -1,7 +1,12 @@
+from datetime import datetime
 import click
 
 from stockprophet.crawler import tse, otc, mops
 from stockprophet.db import get_session
+
+
+mops_start_date = datetime(2013, 1, 1)
+today = datetime.today()
 
 
 @click.group()
@@ -66,8 +71,10 @@ def period_history_table(tse_start_date, tse_end_date, otc_start_date, otc_end_d
 
 
 @build_group.command()
-@click.option('--start_date', '-s', help="設定開始日期", type=click.DateTime(formats=["%Y-%m-%d"]))
-@click.option('--end_date', '-e', help="設定結束日期", type=click.DateTime(formats=["%Y-%m-%d"]))
+@click.option('--start_date', '-sd', help="設定開始日期", default=mops_start_date.strftime("%Y-%m-%d"), show_default=True,
+              type=click.DateTime(formats=["%Y-%m-%d"]))
+@click.option('--end_date', '-ed', help="設定結束日期", default=today.strftime("%Y-%m-%d"), show_default=True,
+              type=click.DateTime(formats=["%Y-%m-%d"]))
 def mops_income_statement_table(start_date, end_date):
     click.echo("建立上市上櫃綜合損益表")
     task = mops.CrawlerTask(start_date=start_date, end_date=end_date, build_income_table=True)
@@ -76,18 +83,22 @@ def mops_income_statement_table(start_date, end_date):
 
 
 @build_group.command()
-@click.option('--start_date', '-s', help="設定開始日期", type=click.DateTime(formats=["%Y-%m-%d"]))
-@click.option('--end_date', '-e', help="設定結束日期", type=click.DateTime(formats=["%Y-%m-%d"]))
+@click.option('--start_date', '-sd', help="設定開始日期", default=mops_start_date.strftime("%Y-%m-%d"), show_default=True,
+              type=click.DateTime(formats=["%Y-%m-%d"]))
+@click.option('--end_date', '-ed', help="設定結束日期", default=today.strftime("%Y-%m-%d"), show_default=True,
+              type=click.DateTime(formats=["%Y-%m-%d"]))
 def mops_balance_sheet_table(start_date, end_date):
     click.echo("建立上市上櫃資產負債表")
-    task = mops.CrawlerTask(start_date=start_date, end_date=end_date, build_balance_table=True)
+    task = mops.CrawlerTask(start_date=start_date.date(), end_date=end_date.date(), build_balance_table=True)
     task.start()
     task.join()
 
 
 @build_group.command()
-@click.option('--start_date', '-s', help="設定開始日期", type=click.DateTime(formats=["%Y-%m-%d"]))
-@click.option('--end_date', '-e', help="設定結束日期", type=click.DateTime(formats=["%Y-%m-%d"]))
+@click.option('--start_date', '-sd', help="設定開始日期", default=mops_start_date.strftime("%Y-%m-%d"), show_default=True,
+              type=click.DateTime(formats=["%Y-%m-%d"]))
+@click.option('--end_date', '-ed', help="設定結束日期", default=today.strftime("%Y-%m-%d"), show_default=True,
+              type=click.DateTime(formats=["%Y-%m-%d"]))
 def mops_monthly_revenue_table(start_date, end_date):
     click.echo("建立上市上櫃月營收表")
     task = mops.CrawlerTask(start_date=start_date, end_date=end_date, build_revenue_table=True)
