@@ -85,7 +85,7 @@ def readall_api(s: Session, type_s: str = '', category_s: str = '', is_alive: bo
         for r in s.execute(query):
             result.append({
                 'id': r[0], 'code': r[1], 'name': r[2], 'is_alive': r[3],
-                'type': r[4], 'category': r[5], 'stock_type_id': r[4], 'stock_category_id': r[5]})
+                'type': r[4], 'category': r[5], 'stock_type_id': r[6], 'stock_category_id': r[7]})
     except exc.SQLAlchemyError as e:
         s.rollback()
         s.close()
