@@ -49,7 +49,7 @@ def show_result(result: list):
     header = "{name}\t{price}\t{diff}\t{vol}\t{pbr}\t{eps}\t{op_margin}\t{gross_margin}".format(
         name=my_align("名稱(代號)", b_size, 'R'),
         price=my_align("股價", s_size, 'R'),
-        diff=my_align("漲幅(%)", s_size, 'R'),
+        diff=my_align("漲跌", s_size, 'R'),
         vol=my_align("成交量", s_size, 'R'),
         pbr=my_align("淨值比", s_size, 'R'),
         eps=my_align("EPS", s_size, 'R'),
@@ -67,7 +67,7 @@ def show_result(result: list):
         msg = "{name}\t{price}\t{diff}\t{vol}\t{pbr}\t{eps}\t{op_margin}\t{gross_margin}".format(
             name=my_align(k, b_size, 'R'),
             price=my_align(str(v[2]), s_size, 'R'),
-            diff=my_align(str(v[3])+'%', s_size, 'R'),
+            diff=my_align(str(v[3]), s_size, 'R'),
             vol=my_align(str(v[4]), s_size, 'R'),
             pbr=my_align(str(v[5]), s_size, 'R'),
             eps=my_align(str(v[6]), s_size, 'R'),
