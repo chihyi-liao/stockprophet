@@ -59,8 +59,12 @@ def fetch_stock_revive_info(start_date: date = None, end_date: date = None, retr
         req.wait_interval = random.randint(3, 5)
         resp = req.send_data(method='GET', url=STOCK_REVIVE_URL, **kwargs)
         if resp.status_code == 200:
-            data = resp.json()
-            if not data:
+            try:
+                data = resp.json()
+                if not data:
+                    continue
+            except Exception as e:
+                logger.warning(str(e))
                 continue
 
             rows = data.get('aaData', [])
@@ -171,8 +175,12 @@ def fetch_stock_history(dt: date, retry: int = 10) -> list:
         req.wait_interval = random.randint(3, 5)
         resp = req.send_data(method='GET', url=STOCK_URL, **kwargs)
         if resp.status_code == 200:
-            data = resp.json()
-            if not data:
+            try:
+                data = resp.json()
+                if not data:
+                    continue
+            except Exception as e:
+                logger.warning(str(e))
                 continue
 
             stocks = data.get('aaData', [])
@@ -219,8 +227,12 @@ def fetch_stock_category(dt: date, retry: int = 10) -> dict:
             req.wait_interval = random.randint(3, 5)
             resp = req.send_data(method='GET', url=STOCK_URL, **kwargs)
             if resp.status_code == 200:
-                data = resp.json()
-                if not data:
+                try:
+                    data = resp.json()
+                    if not data:
+                        continue
+                except Exception as e:
+                    logger.warning(str(e))
                     continue
 
                 stocks = data.get('aaData', [])

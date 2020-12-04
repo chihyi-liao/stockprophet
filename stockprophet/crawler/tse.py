@@ -58,8 +58,12 @@ def fetch_stock_revive_info(start_date: date = None, end_date: date = None, retr
         req.wait_interval = random.randint(5, 10)
         resp = req.send_data(method='GET', url=STOCK_REVIVE_URL, **kwargs)
         if resp.status_code == 200:
-            data = resp.json()
-            if not data:
+            try:
+                data = resp.json()
+                if not data:
+                    continue
+            except Exception as e:
+                logger.warning(str(e))
                 continue
 
             # 證交所有時會出現錯誤的查詢日期資訊： {"stat": "查詢日期小於93年2月11日，請重新查詢!"}
@@ -184,8 +188,12 @@ def fetch_stock_history(dt: date, retry: int = 10) -> list:
         req.wait_interval = random.randint(5, 10)
         resp = req.send_data(method='GET', url=STOCK_URL, **kwargs)
         if resp.status_code == 200:
-            data = resp.json()
-            if not data:
+            try:
+                data = resp.json()
+                if not data:
+                    continue
+            except Exception as e:
+                logger.warning(str(e))
                 continue
 
             # 證交所有時會出現錯誤的查詢日期資訊： {"stat": "查詢日期小於93年2月11日，請重新查詢!"}
@@ -233,8 +241,12 @@ def fetch_stock_category(dt: date, retry: int = 10) -> dict:
             req.wait_interval = random.randint(10, 15)
             resp = req.send_data(method='GET', url=STOCK_URL, **kwargs)
             if resp.status_code == 200:
-                data = resp.json()
-                if not data:
+                try:
+                    data = resp.json()
+                    if not data:
+                        continue
+                except Exception as e:
+                    logger.warning(str(e))
                     continue
 
                 # 證交所有時會出現錯誤的查詢日期資訊： {"stat": "查詢日期小於93年2月11日，請重新查詢!"}
