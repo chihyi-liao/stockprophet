@@ -1,3 +1,5 @@
+from datetime import datetime
+
 from stockprophet.cli.common import progressbar
 from stockprophet.crawler.utils.date import get_latest_stock_date, get_latest_season_date
 from stockprophet.crawler.utils.common import get_stock_dates
@@ -6,14 +8,17 @@ from stockprophet.db.manager import sync_api as db_mgr
 from stockprophet.cli.common import calc_pbr, calc_gross_margin, calc_op_margin, calc_eps
 
 
-def do_get_eps(type_s: str, rate_more: float, rate_less: float, progress: bool = False) -> list:
+def do_get_eps(type_s: str, rate_more: float, rate_less: float, set_date: datetime, progress: bool = False) -> list:
     result = []
     if rate_more > rate_less:
         return result
 
-    # 取得最新交易日
-    date_data = get_stock_dates()
-    latest_date = get_latest_stock_date(date_data.get("market_holiday", []))
+    if set_date:
+        latest_date = set_date
+    else:
+        # 取得最新交易日
+        date_data = get_stock_dates()
+        latest_date = get_latest_stock_date(date_data.get("market_holiday", []))
     season_date = get_latest_season_date(latest_date)
 
     s = get_session()

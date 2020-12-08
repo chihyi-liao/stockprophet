@@ -1,3 +1,5 @@
+from datetime import datetime
+
 from stockprophet.cli.common import progressbar
 from stockprophet.crawler.utils.date import get_latest_stock_date, get_latest_season_date
 from stockprophet.crawler.utils.common import get_stock_dates
@@ -56,12 +58,16 @@ def is_asserts_asc(balance_list: list, n: int) -> bool:
     return result
 
 
-def do_get_balance(type_s: str, liabs_count: int, asserts_count: int, progress: bool = False) -> list:
+def do_get_balance(type_s: str, liabs_count: int, asserts_count: int,
+                   set_date: datetime, progress: bool = False) -> list:
     result = []
 
-    # 取得最新交易日
-    date_data = get_stock_dates()
-    latest_date = get_latest_stock_date(date_data.get("market_holiday", []))
+    if set_date:
+        latest_date = set_date
+    else:
+        # 取得最新交易日
+        date_data = get_stock_dates()
+        latest_date = get_latest_stock_date(date_data.get("market_holiday", []))
     season_date = get_latest_season_date(latest_date)
 
     s = get_session()
