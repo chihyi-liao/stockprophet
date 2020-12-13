@@ -320,7 +320,7 @@ class CrawlerTask(threading.Thread):
                 stock_list = db_mgr.stock.read_api(self._session, type_s=self._stock_type, code=code)
                 alive_stocks_curr[code] = name
 
-                # 若從資料庫找不到, 則建立該股資料 len(stock_list)
+                # 若從資料庫找不到, 則建立該股資料
                 if len(stock_list) == 0:
                     logger.info("建立上櫃資料: 名稱'%s'(代號:%s)", name, code)
                     insert_data = [{'code': code, 'name': name, 'is_alive': True,
@@ -335,7 +335,8 @@ class CrawlerTask(threading.Thread):
                 # 存在資料庫但已下櫃, 之後又恢復上櫃
                 if code not in alive_stocks_db:
                     logger.warning("股市名稱'%s'(代號:%s) 恢復上櫃", name, code)
-                    update_data = {'is_alive': True}
+                    update_data = {
+                        'is_alive': True, 'stock_type_id': type_dict['id'], 'stock_category_id': category_dict['id']}
                     db_mgr.stock.update_api(self._session, oid=stock_id, update_data=update_data)
 
         # 若資料庫的上櫃股, 已不在證交所網站上則設為下櫃

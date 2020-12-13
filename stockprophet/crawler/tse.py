@@ -361,7 +361,8 @@ class CrawlerTask(threading.Thread):
                 # 存在資料庫但已下市, 之後又恢復上市
                 if code not in alive_stocks_db:
                     logger.warning("股市名稱'%s'(代號:%s) 恢復上市", name, code)
-                    update_data = {'is_alive': True}
+                    update_data = {
+                        'is_alive': True, 'stock_type_id': type_dict['id'], 'stock_category_id': category_dict['id']}
                     db_mgr.stock.update_api(self._session, oid=stock_id, update_data=update_data)
 
         # 若資料庫的上市股, 已不在證交所網站上則設為下市
