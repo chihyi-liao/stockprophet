@@ -1,6 +1,11 @@
 import numpy as np
 
 
+def sma(values, n):
+    cumulate_sum = np.cumsum(np.insert(values, 0, 0))
+    return (cumulate_sum[n:] - cumulate_sum[:-n]) / float(n)
+
+
 def ewma(values, n):
     result = []
     for val in values:
