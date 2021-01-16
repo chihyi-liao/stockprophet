@@ -6,6 +6,10 @@ from stockprophet.db import get_session
 from stockprophet.db.manager import sync_api as db_mgr
 from stockprophet.cli.common import calc_pbr, calc_op_margin, calc_eps
 from stockprophet.cli.ta.core import compute
+from stockprophet.utils import get_logger
+
+
+logger = get_logger(__name__)
 
 
 def check_basic(s, code, latest_date, season_date, pbr, opm, eps):
@@ -37,7 +41,8 @@ def check_basic(s, code, latest_date, season_date, pbr, opm, eps):
     if not eps_val or eps_val < eps:
         return False
 
-    revenues = db_mgr.stock_monthly_revenue.read_api(s, code, end_date=latest_date, order_desc=True, limit=2)
+    prev_month_date = latest_date.replace(day=1) - timedelta(days=1)
+    revenues = db_mgr.stock_monthly_revenue.read_api(s, code, end_date=prev_month_date, order_desc=True, limit=2)
     if len(revenues) != 2:
         return False
     last_revenue = revenues[0]['revenue']
@@ -136,7 +141,7 @@ def do_recommendation1_table(type_s: str, pbr: float, opm: float, eps: float,
                              start_date: datetime, end_date: datetime):
     s = get_session()
     for current_date in date_range(start_date=start_date, end_date=end_date):
-        print("找尋 %s 建議股市" % (current_date.strftime("%Y-%m-%d"),))
+        logger.info("找尋 %s 建議股市" % (current_date.strftime("%Y-%m-%d"),))
         data = do_recommendation1(type_s=type_s, set_date=current_date, pbr=pbr, opm=opm, eps=eps)
         if data:
             insert_data = []
@@ -153,5 +158,5 @@ def do_recommendation1_table(type_s: str, pbr: float, opm: float, eps: float,
                         {'price': price, 'note': '', 'stock_id': stock_id, 'stock_date_id': stock_date_id})
 
             if len(insert_data) > 0:
-                print("建立 %s 建議股市資料" % (current_date.strftime("%Y-%m-%d"),))
+                logger.info("建立 %s 建議股市資料: %s" % (current_date.strftime("%Y-%m-%d"), insert_data))
                 db_mgr.stock_recommendation.create_api(s, insert_data)
