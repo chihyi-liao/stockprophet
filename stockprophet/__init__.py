@@ -25,8 +25,8 @@ def preprocessing() -> bool:
         init_stock_category()
         init_stock_type()
         result = True
-    except Exception:
-        print("無法連線資料庫")
+    except Exception as e:
+        print("無法連線資料庫: %s" % (str(e), ))
     return result
 
 
