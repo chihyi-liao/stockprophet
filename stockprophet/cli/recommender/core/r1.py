@@ -83,7 +83,7 @@ def check_tech(s, code, latest_date, avg_vol=300):
 
     ma5_volumes = compute.sma(volumes, 5)
     ma10_volumes = compute.sma(volumes, 10)
-    if ma5_volumes[-1] < ma10_volumes[-1] < avg_vol:
+    if ma5_volumes[-1] < ma10_volumes[-1] or ma5_volumes[-1] < avg_vol:
         return False
 
     k_data, d_data, j_data = compute.kdj(high_values, low_values, close_values, 9)
