@@ -54,7 +54,7 @@ def check_basic(s, code, latest_date, season_date, pbr, opm, eps):
 
 
 def check_tech(s, code, latest_date, avg_vol=300):
-    start_date = latest_date - timedelta(days=45)
+    start_date = latest_date - timedelta(days=90)
     history_list = db_mgr.stock_daily_history.read_api(
         s, code=code, start_date=start_date, end_date=latest_date, limit=0)
     if len(history_list) == 0:
@@ -86,17 +86,28 @@ def check_tech(s, code, latest_date, avg_vol=300):
     if ma5_volumes[-1] < ma10_volumes[-1] or ma5_volumes[-1] < avg_vol:
         return False
 
+    result = True
     k_data, d_data, j_data = compute.kdj(high_values, low_values, close_values, 9)
     if len(k_data) == 0:
-        return False
+        result = False
+    else:
+        if k_data[-1] > 40 or d_data[-1] > 40:
+            result = False
 
-    if k_data[-1] > 40 or d_data[-1] > 40:
-        return False
+        if k_data[-1] < d_data[-1]:
+            result = False
 
-    if k_data[-1] < d_data[-1]:
-        return False
+    if not result:
+        macd, signal, diff = compute.macd(close_values, fast=12, slow=26, n=9)
+        if len(diff) < 2:
+            result = False
+        else:
+            if macd[-1] < 0 and signal[-1] < 0:
+                data = diff[-2:]
+                if data[-1] > data[-2] and -0.2 < data[-1] < 0:
+                    result = True
 
-    return True
+    return result
 
 
 def do_recommendation1(type_s: str, set_date: datetime, pbr: float, opm: float, eps: float) -> list:
