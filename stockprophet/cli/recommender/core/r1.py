@@ -54,11 +54,13 @@ def check_basic(s, code, latest_date, season_date, pbr, opm, eps):
 
 
 def check_tech(s, code, latest_date, avg_vol=300):
+    result = False
     start_date = latest_date - timedelta(days=90)
+
     history_list = db_mgr.stock_daily_history.read_api(
         s, code=code, start_date=start_date, end_date=latest_date, limit=0)
     if len(history_list) == 0:
-        return False
+        return result, ''
 
     close_values = []
     high_values = []
@@ -73,41 +75,33 @@ def check_tech(s, code, latest_date, avg_vol=300):
         close_values.append(val['co'])
         volumes.append(int(val['vol'] / 1000))
 
+    # 檢查KD線是否到判斷條件
+    k_data, d_data, j_data = compute.kdj(high_values, low_values, close_values, 9)
+    if len(k_data) > 2 and k_data[-1] <= 40:
+        if k_data[-2] - d_data[-2] <= 0 <= k_data[-1] - d_data[-1]:
+            result = True
+            return result, 'KD'
+
+    # 檢查MACD線是否到判斷條件
+    macd, signal, diff = compute.macd(close_values, fast=12, slow=26, n=9)
+    if len(diff) >= 2 and macd[-1] < 0:
+        diff_data = diff[-2:]
+        if diff_data[-2] <= diff_data[-1] <= 0 < diff_data[-1] + 0.01:
+            result = True
+            return result, 'MACD'
+
+    # 檢查MA線是否到判斷條件
     ma5_prices = compute.sma(close_values, 5)
     ma10_prices = compute.sma(close_values, 10)
-    if len(ma5_prices) == 0 or len(ma10_prices) == 0:
-        return False
+    if len(ma5_prices) > 1 and len(ma10_prices) > 1:
+        if ma5_prices[-1] > ma10_prices[-1] and ma5_prices[-2] < ma10_prices[-2]:
+            ma5_volumes = compute.sma(volumes, 5)
+            ma10_volumes = compute.sma(volumes, 10)
+            if avg_vol < ma5_volumes[-1] > ma10_volumes[-1]:
+                result = True
+                return result, 'MA'
 
-    if ma5_prices[-1] < ma10_prices[-1]:
-        return False
-
-    ma5_volumes = compute.sma(volumes, 5)
-    ma10_volumes = compute.sma(volumes, 10)
-    if ma5_volumes[-1] < ma10_volumes[-1] or ma5_volumes[-1] < avg_vol:
-        return False
-
-    result = True
-    k_data, d_data, j_data = compute.kdj(high_values, low_values, close_values, 9)
-    if len(k_data) == 0:
-        result = False
-    else:
-        if k_data[-1] > 40 or d_data[-1] > 40:
-            result = False
-
-        if k_data[-1] < d_data[-1]:
-            result = False
-
-    if not result:
-        macd, signal, diff = compute.macd(close_values, fast=12, slow=26, n=9)
-        if len(diff) < 2:
-            result = False
-        else:
-            if macd[-1] < 0 and signal[-1] < 0:
-                data = diff[-2:]
-                if data[-1] > data[-2] and -0.2 < data[-1] < 0:
-                    result = True
-
-    return result
+    return result, ''
 
 
 def do_recommendation1(type_s: str, set_date: datetime, pbr: float, opm: float, eps: float) -> list:
@@ -132,7 +126,8 @@ def do_recommendation1(type_s: str, set_date: datetime, pbr: float, opm: float, 
             continue
 
         # 檢查技術面
-        if not check_tech(s, stock['code'], latest_date):
+        tech_result, reason = check_tech(s, stock['code'], latest_date)
+        if not tech_result:
             continue
 
         history_list = db_mgr.stock_daily_history.read_api(
@@ -142,7 +137,7 @@ def do_recommendation1(type_s: str, set_date: datetime, pbr: float, opm: float, 
         if history_list[0]['co']:
             result.append(
                 tuple([
-                    stock['id'], stock['code'], stock['name'],
+                    stock['id'], stock['code'], stock['name'], reason,
                     history_list[0]['co'], latest_date.strftime("%Y-%m-%d")
                 ]))
     return result
@@ -161,12 +156,12 @@ def do_recommendation1_table(type_s: str, pbr: float, opm: float, eps: float,
                 continue
 
             stock_date_id = stock_date_list[0]['id']
-            for stock_id, code, _, price, _ in data:
+            for stock_id, code, _, reason, price, _ in data:
                 recommends = db_mgr.stock_recommendation.read_api(
                     s, code, start_date=current_date, end_date=current_date, limit=1)
                 if len(recommends) == 0:
                     insert_data.append(
-                        {'price': price, 'note': '', 'stock_id': stock_id, 'stock_date_id': stock_date_id})
+                        {'price': price, 'note': reason, 'stock_id': stock_id, 'stock_date_id': stock_date_id})
 
             if len(insert_data) > 0:
                 logger.info("建立 %s 建議股市資料: %s" % (current_date.strftime("%Y-%m-%d"), insert_data))
