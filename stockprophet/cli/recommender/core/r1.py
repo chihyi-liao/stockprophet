@@ -13,44 +13,54 @@ logger = get_logger(__name__)
 
 
 def check_basic(s, code, latest_date, season_date, pbr, opm, eps):
+    result = False
     history_list = db_mgr.stock_daily_history.read_api(
         s, code=code, start_date=latest_date, end_date=latest_date, limit=1)
 
     if len(history_list) == 0:
-        return False
+        return result
 
     val = history_list[0]
     if not val['co']:
-        return False
+        return result
 
     balance_list = db_mgr.stock_balance_sheet.read_api(
         s, code, start_date=season_date, end_date=season_date, limit=1)
 
     pbr_val = calc_pbr(code, val['co'], balance_list=balance_list)
     if not pbr_val or pbr_val > pbr:
-        return False
+        return result
 
     income_list = db_mgr.stock_income_statement.read_api(
         s, code, start_date=season_date, end_date=season_date, limit=1)
 
     op_margin = calc_op_margin(income_list=income_list)
     if not op_margin or op_margin < opm:
-        return False
+        return result
 
     eps_val = calc_eps(income_list=income_list)
     if not eps_val or eps_val < eps:
-        return False
+        return result
 
     prev_month_date = latest_date.replace(day=1) - timedelta(days=1)
     revenues = db_mgr.stock_monthly_revenue.read_api(s, code, end_date=prev_month_date, order_desc=True, limit=2)
     if len(revenues) != 2:
-        return False
+        return result
+
+    last_year_date = datetime(year=prev_month_date.year-1, month=prev_month_date.month, day=1)
+    last_year_revenues = db_mgr.stock_monthly_revenue.read_api(s, code, end_date=last_year_date,
+                                                               order_desc=True, limit=1)
+    if len(last_year_revenues) != 1:
+        return result
+
     last_revenue = revenues[0]['revenue']
     prev_revenue = revenues[1]['revenue']
-    if last_revenue + int(last_revenue * 1 / 100) < prev_revenue:
-        return False
-
-    return True
+    last_year_revenue = last_year_revenues[0]['revenue']
+    if last_revenue + int(last_revenue * 1 / 100) < prev_revenue and last_revenue < last_year_revenue:
+        result = False
+    else:
+        result = True
+    return result
 
 
 def check_tech(s, code, latest_date, avg_vol=300):
