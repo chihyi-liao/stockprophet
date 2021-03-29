@@ -85,6 +85,11 @@ def check_tech(s, code, latest_date, avg_vol=300):
         close_values.append(val['co'])
         volumes.append(int(val['vol'] / 1000))
 
+    # 檢查MA交易量是否到判斷條件
+    ma5_volumes = compute.sma(volumes, 5)
+    if ma5_volumes[-1] < avg_vol:
+        return result, ''
+
     # 檢查KD線是否到判斷條件
     k_data, d_data, j_data = compute.kdj(high_values, low_values, close_values, 9)
     if len(k_data) > 2 and k_data[-1] <= 40:
@@ -105,11 +110,8 @@ def check_tech(s, code, latest_date, avg_vol=300):
     ma10_prices = compute.sma(close_values, 10)
     if len(ma5_prices) > 1 and len(ma10_prices) > 1:
         if ma5_prices[-1] > ma10_prices[-1] and ma5_prices[-2] < ma10_prices[-2]:
-            ma5_volumes = compute.sma(volumes, 5)
-            ma10_volumes = compute.sma(volumes, 10)
-            if avg_vol < ma5_volumes[-1] > ma10_volumes[-1]:
-                result = True
-                return result, 'MA'
+            result = True
+            return result, 'MA'
 
     return result, ''
 
