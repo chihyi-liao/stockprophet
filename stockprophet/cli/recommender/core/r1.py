@@ -87,7 +87,7 @@ def check_tech(s, code, latest_date, avg_vol=300):
 
     # 檢查MA交易量是否到判斷條件
     ma5_volumes = compute.sma(volumes, 5)
-    if ma5_volumes[-1] < avg_vol:
+    if len(ma5_volumes) > 0 and ma5_volumes[-1] < avg_vol:
         return result, ''
 
     # 檢查KD線是否到判斷條件
