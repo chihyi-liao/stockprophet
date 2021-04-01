@@ -517,7 +517,7 @@ class CrawlerTask(threading.Thread):
                 for current_date in date_range(start_date, self.end_date):
                     # 判斷時間已做到最新的報表
                     year, season = date_to_year_season(current_date)
-                    if year >= l_year and season > l_season:
+                    if year == l_year and season == l_season:
                         break
 
                     # 只處理每季第一天, 避免重複計算
@@ -636,7 +636,7 @@ class CrawlerTask(threading.Thread):
                 for current_date in date_range(self.start_date, self.end_date):
                     # 判斷時間已做到最新的報表
                     year, season = date_to_year_season(current_date)
-                    if year >= l_year and season > l_season:
+                    if year == l_year and season == l_season:
                         break
 
                     # 只處理每季第一天, 避免重複計算

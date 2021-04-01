@@ -82,10 +82,11 @@ def get_offset_date_by_days(date: datetime.date, n: int):
 
 
 def date_to_year_season(date: datetime.date):
-    seasons = [4, 4, 4, 1, 1, 2, 2, 2, 3, 3, 3, 4]
+    # seasons = [4, 4, 4, 1, 1, 2, 2, 2, 3, 3, 3, 4]
+    seasons = [3, 3, 3, 4, 4, 1, 1, 1, 2, 2, 2, 3]
     season = seasons[date.month-1]
     month = date.month
-    if month in [1, 2, 3]:
+    if month < 6:
         year = date.year - 1
     else:
         year = date.year
