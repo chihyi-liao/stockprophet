@@ -461,6 +461,7 @@ class CrawlerTask(threading.Thread):
 
     @staticmethod
     def default_date() -> date:
+        # IFRS start season
         return date(2013, 1, 1)
 
     def build_balance_sheet_table(self):
@@ -478,7 +479,6 @@ class CrawlerTask(threading.Thread):
         if len(bank_list) == 1:
             bank_id = bank_list[0]['id']
 
-        l_year, l_season = latest_year_season(self.end_date)
         # 取得所有上市股票
         type_list = [t['name'] for t in db_mgr.stock_type.readall_api(self._session)]
         for type_s in type_list:
@@ -508,23 +508,18 @@ class CrawlerTask(threading.Thread):
                     db_mgr.stock_metadata.create_api(self._session, data_list=[{'stock_id': stock['id']}])
                 db_lock.release()
 
-                if self.start_date <= self.default_date():
-                    _, et = season_range(self.default_date())
-                    start_date, _ = season_range(et + timedelta(days=1))
-                else:
-                    start_date, _ = season_range(self.start_date)
+                start_date, _ = season_range(self.start_date)
+                if start_date <= self.default_date():
+                    start_date = self.default_date()
 
+                date_list = []
                 for current_date in date_range(start_date, self.end_date):
-                    # 判斷時間已做到最新的報表
-                    year, season = date_to_year_season(current_date)
-                    if year == l_year and season == l_season:
-                        break
-
                     # 只處理每季第一天, 避免重複計算
                     sn_start_date, sn_end_date = season_range(current_date)
-                    season_date = sn_start_date
-                    if current_date != season_date:
+                    if sn_start_date in date_list:
                         continue
+                    else:
+                        date_list.append(sn_start_date)
 
                     metadata = dict()
                     metadata_list = db_mgr.stock_metadata.read_api(self._session, code=code)
@@ -559,6 +554,7 @@ class CrawlerTask(threading.Thread):
                     # 取得 stock_date_id
                     stock_date_id = sn_date_list[0]['id']
 
+                    year, season = date_to_year_season(current_date)
                     # 金融股要特殊參數
                     if bank_id is not None and stock['stock_category_id'] == bank_id:
                         data = fetch_balance_sheet(type_s, code, year, season, '2')
@@ -597,7 +593,6 @@ class CrawlerTask(threading.Thread):
         if len(bank_list) == 1:
             bank_id = bank_list[0]['id']
 
-        l_year, l_season = latest_year_season(self.end_date)
         # 取得所有上市股票
         type_list = [t['name'] for t in db_mgr.stock_type.readall_api(self._session)]
         for type_s in type_list:
@@ -627,23 +622,18 @@ class CrawlerTask(threading.Thread):
                     db_mgr.stock_metadata.create_api(self._session, data_list=[{'stock_id': stock['id']}])
                 db_lock.release()
 
-                if self.start_date <= self.default_date():
-                    _, et = season_range(self.default_date())
-                    start_date, _ = season_range(et + timedelta(days=1))
-                else:
-                    start_date, _ = season_range(self.start_date)
+                start_date, _ = season_range(self.start_date)
+                if start_date <= self.default_date():
+                    start_date = self.default_date()
 
-                for current_date in date_range(self.start_date, self.end_date):
-                    # 判斷時間已做到最新的報表
-                    year, season = date_to_year_season(current_date)
-                    if year == l_year and season == l_season:
-                        break
-
+                date_list = []
+                for current_date in date_range(start_date, self.end_date):
                     # 只處理每季第一天, 避免重複計算
                     sn_start_date, sn_end_date = season_range(current_date)
-                    season_date = sn_start_date
-                    if current_date != season_date:
+                    if sn_start_date in date_list:
                         continue
+                    else:
+                        date_list.append(sn_start_date)
 
                     metadata = dict()
                     metadata_list = db_mgr.stock_metadata.read_api(self._session, code=code)
@@ -677,6 +667,7 @@ class CrawlerTask(threading.Thread):
                     # 取得 stock_date_id
                     stock_date_id = sn_date_list[0]['id']
 
+                    year, season = date_to_year_season(current_date)
                     # 金融股要特殊參數
                     if bank_id is not None and stock['stock_category_id'] == bank_id:
                         data = fetch_income_statement(type_s, code, year, season, '2')

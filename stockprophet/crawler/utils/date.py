@@ -26,7 +26,8 @@ def month_range(date: datetime.date):
 
 
 def season_range(date: datetime.date):
-    seasons = [4, 4, 4, 1, 1, 2, 2, 2, 3, 3, 3, 4]
+    # seasons = [4, 4, 4, 1, 1, 2, 2, 2, 3, 3, 3, 4]
+    seasons = [3, 3, 3, 4, 4, 1, 1, 1, 2, 2, 2, 3]
     season = seasons[date.month - 1]
     year = date.year
     if season == 1:
@@ -36,16 +37,16 @@ def season_range(date: datetime.date):
         start_date = datetime.date(year, 6, 1)
         end_date = datetime.date(year, 9, 1) - datetime.timedelta(days=1)
     elif season == 3:
-        start_date = datetime.date(year, 9, 1)
-        end_date = datetime.date(year, 12, 1) - datetime.timedelta(days=1)
-    else:
         month = date.month
         if month in [1, 2, 3]:
-            start_date = datetime.date(year-1, 12, 1)
-            end_date = datetime.date(year, 4, 1) - datetime.timedelta(days=1)
+            start_date = datetime.date(year-1, 9, 1)
+            end_date = datetime.date(year-1, 12, 1) - datetime.timedelta(days=1)
         else:
-            start_date = datetime.date(year, 12, 1)
-            end_date = datetime.date(year+1, 4, 1) - datetime.timedelta(days=1)
+            start_date = datetime.date(year, 9, 1)
+            end_date = datetime.date(year, 12, 1) - datetime.timedelta(days=1)
+    else:
+        start_date = datetime.date(year-1, 12, 1)
+        end_date = datetime.date(year, 4, 1) - datetime.timedelta(days=1)
     return start_date, end_date
 
 
