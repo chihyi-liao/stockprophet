@@ -5,35 +5,67 @@ from datetime import date
 import click
 
 
+widths = [
+    (126,    1), (159,    0), (687,     1), (710,   0), (711,   1),
+    (727,    0), (733,    1), (879,     0), (1154,  1), (1161,  0),
+    (4347,   1), (4447,   2), (7467,    1), (7521,  0), (8369,  1),
+    (8426,   0), (9000,   1), (9002,    2), (11021, 1), (12350, 2),
+    (12351,  1), (12438,  2), (12442,   0), (19893, 2), (19967, 1),
+    (55203,  2), (63743,  1), (64106,   2), (65039, 1), (65059, 0),
+    (65131,  2), (65279,  1), (65376,   2), (65500, 1), (65510, 2),
+    (120831, 1), (262141, 2), (1114109, 1),
+]
+
+
+def get_width(o):
+    """Return the screen column width for unicode ordinal o."""
+    global widths
+    n = ord(o)
+    if n == 0xe or n == 0xf:
+        return 0
+    for num, wid in widths:
+        if n <= num:
+            return wid
+    return 1
+
+
 def my_align(in_str: str, length: int, align_type: str = 'L') -> str:
     """
     中英文混合對齊函式
-
     :param in_str:[str]輸入的字串
     :param length:[int]對齊長度
     :param align_type:[str]對齊方式（'L'：靠左對齊；'R'：靠右對齊；'C': 置中對齊）
     :return:[str]輸出對齊字串
     """
-    str_len = len(in_str)
-    zh_count = 0
+    count = 0
     for ch in in_str:
-        if u'\u4e00' <= ch <= u'\u9fa5':
-            str_len += 1
-            zh_count += 1
+        count += get_width(ch)
 
-    space = length - str_len - 2 * zh_count
-    if align_type == 'L':
-        left = ''
-        right = ' ' * space + chr(12288) * zh_count
-    elif align_type == 'R':
-        left = chr(12288) * zh_count + ' ' * space
-        right = ''
+    if count > length:
+        num = 0
+        idx = 0
+        dot_count = 0
+        data = [get_width(ch) for ch in in_str]
+        for i, n in enumerate(data):
+            num += n
+            if num >= length:
+                idx = i
+                dot_count = data[i] if num == length else num - length
+                break
+        return in_str[:idx] + dot_count * '.'
     else:
-        size = space // 2
-        zh_size = zh_count // 2
-        left = chr(12288) * zh_size + ' ' * size
-        right = ' ' * (space - size) + chr(12288) * (zh_count - zh_size)
-    return left + in_str + right
+        space_count = length - count
+        if align_type == 'L':
+            left = ''
+            right = ' ' * space_count
+        elif align_type == 'R':
+            left = ' ' * space_count
+            right = ''
+        else:
+            size = space_count // 2
+            left = ' ' * size
+            right = ' ' * (space_count - size)
+        return left + in_str + right
 
 
 def show_result(result: list):
