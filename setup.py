@@ -47,9 +47,18 @@ PACKAGES = [
     'stockprophet.crawler.utils',
     'stockprophet.cli',
     'stockprophet.cli.ba',
+    'stockprophet.cli.ba.core',
+    'stockprophet.cli.db',
     'stockprophet.cli.ta',
-    'stockprophet.cli.stock'
+    'stockprophet.cli.ta.core',
+    'stockprophet.cli.stock',
+    'stockprophet.cli.sim',
+    'stockprophet.cli.sim.core',
+    'stockprophet.cli.recommender',
+    'stockprophet.cli.recommender.core'
 ]
+PACKAGE_DATA = {'stockprophet': ['resources/config.ini']}
+INCLUDE_PACKAGE_DATA = True
 
 CLASSIFIERS = [
     'Intended Audience :: Science/Research',
@@ -88,5 +97,7 @@ setup(
     install_requires=INSTALL_REQUIRES,
     entry_points=ENTRY_POINTS,
     packages=PACKAGES,
+    package_data=PACKAGE_DATA,
+    include_package_data=INCLUDE_PACKAGE_DATA,
     classifiers=CLASSIFIERS
 )
